@@ -28,16 +28,41 @@ namespace TransferToolRPA.Models
             
             ReportProgress("Conectando ao navegador Chrome/Edge ativo (porta 9222)...", 5);
             
-            IBrowser browser;
+            string cdpUrl = "http://127.0.0.1:9222";
+            string wsUrl = cdpUrl;
+
             try
             {
-                browser = await playwright.Chromium.ConnectOverCDPAsync("http://localhost:9222");
+                using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(3);
+                string json = await httpClient.GetStringAsync($"{cdpUrl}/json/version");
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
+                {
+                    string? url = wsProp.GetString();
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        wsUrl = url.Replace("localhost", "127.0.0.1");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
                     "Não foi possível conectar ao navegador ativo. Certifique-se de que o Google Chrome " +
                     "ou Edge foi iniciado com a flag de depuração habilitada: --remote-debugging-port=9222", ex);
+            }
+
+            IBrowser browser;
+            try
+            {
+                browser = await playwright.Chromium.ConnectOverCDPAsync(wsUrl);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "Falha ao conectar via protocolo de depuração remota do Playwright. " +
+                    "Certifique-se de que o navegador está aberto e acessível na porta 9222.", ex);
             }
 
             var context = browser.Contexts.FirstOrDefault() 
