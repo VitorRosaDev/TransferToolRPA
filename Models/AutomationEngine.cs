@@ -130,9 +130,7 @@ namespace TransferToolRPA.Models
                     throw new InvalidOperationException($"Nenhum lote ou estoque disponível encontrado para o produto {item.codigo}.");
                 }
 
-                int melhorLinhaIndex = 0;
-                DateTime melhorValidade = DateTime.MaxValue;
-                double melhorQuantidade = double.MaxValue;
+                var lotesList = new System.Collections.Generic.List<LoteDisponivel>();
 
                 for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
@@ -149,26 +147,19 @@ namespace TransferToolRPA.Models
                         if (DateTime.TryParse(txtValidade, out DateTime validadeParsed))
                         {
                             double.TryParse(txtQuantidade.Replace(",", "."), out double quantidadeParsed);
-
-                            // Algoritmo de decisão: validade mais antiga primeiro.
-                            // Se empatar a validade, pegamos o de menor quantidade física disponível.
-                            if (validadeParsed < melhorValidade)
-                            {
-                                melhorValidade = validadeParsed;
-                                melhorQuantidade = quantidadeParsed;
-                                melhorLinhaIndex = rowIndex;
-                            }
-                            else if (validadeParsed == melhorValidade && quantidadeParsed < melhorQuantidade)
-                            {
-                                melhorQuantidade = quantidadeParsed;
-                                melhorLinhaIndex = rowIndex;
-                            }
+                            lotesList.Add(new LoteDisponivel(rowIndex, validadeParsed, quantidadeParsed));
                         }
                     }
                 }
 
+                var melhorLote = LoteSelector.SelecionarMelhorLote(lotesList);
+                if (melhorLote == null)
+                {
+                    throw new InvalidOperationException($"Nenhum lote com validade válida encontrado para o produto {item.codigo}.");
+                }
+
                 // Clica no lote escolhido para selecioná-lo
-                await rows[melhorLinhaIndex].ClickAsync();
+                await rows[melhorLote.Index].ClickAsync();
 
                 // Inserir a quantidade do produto a ser transferida
                 await page.FillAsync("input[name='quantidade_transferir'], #quantidade_item", item.quantidade.ToString());

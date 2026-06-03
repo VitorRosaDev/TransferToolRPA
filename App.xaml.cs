@@ -1,10 +1,27 @@
 using System;
 using System.Windows;
+using TransferToolRPA.Services;
+using TransferToolRPA.ViewModels;
 
 namespace TransferToolRPA
 {
     public partial class App : Application
     {
-        // Eventos do ciclo de vida global do aplicativo
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+
+            // Inicialização dos serviços (Injeção de Dependência Manual)
+            ILoggerService loggerService = new ObservableLoggerService();
+            IPayloadService payloadService = new PayloadService();
+            IAutomationService automationService = new PlaywrightAutomationService();
+
+            // Inicialização da ViewModel passando as dependências do Clean Architecture
+            var viewModel = new MainViewModel(payloadService, automationService, loggerService);
+
+            // Inicialização da View injetando a ViewModel
+            var mainWindow = new MainWindow(viewModel);
+            mainWindow.Show();
+        }
     }
 }

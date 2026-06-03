@@ -13,10 +13,10 @@ namespace TransferToolRPA
     {
         private readonly MainViewModel _viewModel;
 
-        public MainWindow()
+        public MainWindow(MainViewModel viewModel)
         {
             InitializeComponent();
-            _viewModel = new MainViewModel();
+            _viewModel = viewModel;
             DataContext = _viewModel;
         }
 
@@ -70,7 +70,7 @@ namespace TransferToolRPA
                     string filePath = files[0];
                     if (Path.GetExtension(filePath).Equals(".json", StringComparison.OrdinalIgnoreCase))
                     {
-                        _viewModel.ImportarJson(filePath);
+                        _viewModel.ImportarJsonCommand.Execute(filePath);
                     }
                     else
                     {
@@ -94,7 +94,7 @@ namespace TransferToolRPA
 
                 if (openFileDialog.ShowDialog() == true)
                 {
-                    _viewModel.ImportarJson(openFileDialog.FileName);
+                    _viewModel.ImportarJsonCommand.Execute(openFileDialog.FileName);
                 }
             }
         }
