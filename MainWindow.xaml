@@ -1,0 +1,194 @@
+<Window x:Class="TransferToolRPA.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TransferToolRPA"
+        mc:Ignorable="d"
+        Title="TransferTool RPA - Controle de Transferências" 
+        Height="500" Width="850"
+        Background="#000000"
+        WindowStartupLocation="CenterScreen"
+        Foreground="#E0E0E0">
+
+    <Window.Resources>
+        <!-- Estilo Base para os Botões com o Template do WPF -->
+        <Style x:Key="BaseRpaButtonStyle" TargetType="Button">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#1A1A1A"/>
+                                <Setter Property="Foreground" Value="#555555"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Estilo para o Botão Iniciar (Verde Limão) -->
+        <Style x:Key="IniciarButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseRpaButtonStyle}">
+            <Setter Property="Background" Value="#38E54D"/>
+            <Setter Property="Foreground" Value="#000000"/>
+        </Style>
+
+        <!-- Estilo para o Botão Cancelar (Vermelho) -->
+        <Style x:Key="CancelarButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseRpaButtonStyle}">
+            <Setter Property="Background" Value="#E74C3C"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Row 0: Cabecalho -->
+            <RowDefinition Height="180"/>  <!-- Row 1: Área Central -->
+            <RowDefinition Height="*"/>    <!-- Row 2: Logs de Execução (Achatado) -->
+            <RowDefinition Height="Auto"/> <!-- Row 3: Barra de Progresso (Base) -->
+        </Grid.RowDefinitions>
+
+        <!-- Cabalho Principal -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+            <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="#38E54D"/>
+            <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="#888888" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <!-- Área Central (Upload e Dados de Carga) -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="320"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Zona de Drag and Drop -->
+            <Border Grid.Column="0" 
+                    Background="#0D0D0D" 
+                    BorderBrush="#38E54D" 
+                    BorderThickness="1.5" 
+                    CornerRadius="8" 
+                    Margin="0,0,15,0"
+                    AllowDrop="True"
+                    DragEnter="Border_DragEnter"
+                    DragLeave="Border_DragLeave"
+                    Drop="Border_Drop"
+                    Cursor="Hand"
+                    MouseDown="Border_MouseDown">
+                
+                <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="📥" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                        <TextBlock Text="Arraste o arquivo JSON da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Ou clique para navegar no computador" FontSize="11" Foreground="#666666" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Painel de Auditoria da Carga -->
+            <Border Grid.Column="1" Background="#0D0D0D" CornerRadius="8" Padding="15">
+                <StackPanel>
+                    <TextBlock Text="DETALHES DA CARGA IMPORTADA" FontSize="11" FontWeight="Bold" Foreground="#888888" Margin="0,0,0,12"/>
+                    
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="Depósito Origem:" Foreground="#888888" FontSize="12"/>
+                        <TextBlock Text="{Binding Origem}" Foreground="#E0E0E0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="Escola Destino:" Foreground="#888888" FontSize="12"/>
+                        <TextBlock Text="{Binding Destino}" Foreground="#E0E0E0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <Grid Margin="0,0,0,15">
+                        <TextBlock Text="Total de Produtos:" Foreground="#888888" FontSize="12"/>
+                        <TextBlock Text="{Binding TotalItens}" Foreground="#38E54D" FontSize="13" FontWeight="Bold" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <Separator Background="#333333" Margin="0,0,0,15"/>
+
+                    <!-- Ações de Automação -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Button Grid.Column="0" 
+                                Content="Iniciar RPA" 
+                                Command="{Binding IniciarAutomacaoCommand}"
+                                Style="{StaticResource IniciarButtonStyle}"
+                                Margin="0,0,5,0"/>
+
+                        <Button Grid.Column="1" 
+                                Content="Cancelar" 
+                                Command="{Binding CancelarAutomacaoCommand}"
+                                Style="{StaticResource CancelarButtonStyle}"
+                                Margin="5,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Logs de Execução em tempo real (Achatado e Compactado) -->
+        <Grid Grid.Row="2" Margin="0,0,0,15">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock Grid.Row="0" Text="LOG DE EXECUÇÃO EM TEMPO REAL" FontSize="11" FontWeight="Bold" Foreground="#888888" Margin="0,0,0,5"/>
+            
+            <Border Grid.Row="1" Background="#070707" CornerRadius="8" BorderBrush="#222222" BorderThickness="1">
+                <TextBox x:Name="TxtLog"
+                         Text="{Binding LogOutput, Mode=OneWay}"
+                         Background="Transparent"
+                         Foreground="#A3E4D7"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Padding="10"
+                         TextChanged="TxtLog_TextChanged"/>
+            </Border>
+        </Grid>
+
+        <!-- Barra de Progresso Visual (Posicionada na Base) -->
+        <Border Grid.Row="3" Background="#0D0D0D" CornerRadius="8" Padding="15">
+            <StackPanel>
+                <Grid Margin="0,0,0,8">
+                    <TextBlock Text="{Binding ProgressoMensagem}" FontSize="12" Foreground="#CCCCCC"/>
+                    <TextBlock Text="{Binding ProgressoPercent, StringFormat={}{0:0}%}" FontSize="12" FontWeight="Bold" Foreground="#38E54D" HorizontalAlignment="Right"/>
+                </Grid>
+                <ProgressBar Height="10" 
+                             Minimum="0" 
+                             Maximum="100" 
+                             Value="{Binding ProgressoPercent}" 
+                             Foreground="#38E54D" 
+                             Background="#050505"
+                             BorderThickness="0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

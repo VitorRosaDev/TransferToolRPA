@@ -1,0 +1,24 @@
+## Build e Output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+## Caches e Configurações de IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.dbmdl
+*.jfm
+
+## OS Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+## Log de Execução local
+*.log
