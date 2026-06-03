@@ -9,9 +9,19 @@
         Height="500" Width="850"
         Background="#000000"
         WindowStartupLocation="CenterScreen"
-        Foreground="#E0E0E0">
+        Foreground="#E7E9EA">
 
     <Window.Resources>
+        <!-- Paleta de Cores Alinhada com o Tema Escuro do Mobile -->
+        <SolidColorBrush x:Key="BgBrush" Color="#000000"/>
+        <SolidColorBrush x:Key="CardBgBrush" Color="#16181C"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#2F3336"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#E7E9EA"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#71767A"/>
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB"/>
+        <SolidColorBrush x:Key="SuccessBrush" Color="#00BA7C"/>
+        <SolidColorBrush x:Key="DangerBrush" Color="#F4212E"/>
+
         <!-- Estilo Base para os Botões com o Template do WPF -->
         <Style x:Key="BaseRpaButtonStyle" TargetType="Button">
             <Setter Property="FontWeight" Value="Bold"/>
@@ -37,7 +47,7 @@
                                 <Setter TargetName="border" Property="Opacity" Value="0.8"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="border" Property="Background" Value="#1A1A1A"/>
+                                <Setter TargetName="border" Property="Background" Value="#1C1E22"/>
                                 <Setter Property="Foreground" Value="#555555"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -46,15 +56,15 @@
             </Setter>
         </Style>
 
-        <!-- Estilo para o Botão Iniciar (Verde Limão) -->
+        <!-- Estilo para o Botão Iniciar (Azul Royal) -->
         <Style x:Key="IniciarButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseRpaButtonStyle}">
-            <Setter Property="Background" Value="#38E54D"/>
-            <Setter Property="Foreground" Value="#000000"/>
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
         </Style>
 
-        <!-- Estilo para o Botão Cancelar (Vermelho) -->
+        <!-- Estilo para o Botão Cancelar (Vermelho Perigo) -->
         <Style x:Key="CancelarButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseRpaButtonStyle}">
-            <Setter Property="Background" Value="#E74C3C"/>
+            <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
         </Style>
     </Window.Resources>
@@ -67,10 +77,10 @@
             <RowDefinition Height="Auto"/> <!-- Row 3: Barra de Progresso (Base) -->
         </Grid.RowDefinitions>
 
-        <!-- Cabalho Principal -->
+        <!-- Cabeçalho Principal -->
         <StackPanel Grid.Row="0" Margin="0,0,0,15">
-            <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="#38E54D"/>
-            <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="#888888" Margin="0,2,0,0"/>
+            <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+            <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
         </StackPanel>
 
         <!-- Área Central (Upload e Dados de Carga) -->
@@ -81,9 +91,10 @@
             </Grid.ColumnDefinitions>
 
             <!-- Zona de Drag and Drop -->
-            <Border Grid.Column="0" 
-                    Background="#0D0D0D" 
-                    BorderBrush="#38E54D" 
+            <Border x:Name="UploadBorder"
+                    Grid.Column="0" 
+                    Background="{StaticResource CardBgBrush}" 
+                    BorderBrush="{StaticResource PrimaryBrush}" 
                     BorderThickness="1.5" 
                     CornerRadius="8" 
                     Margin="0,0,15,0"
@@ -97,33 +108,33 @@
                 <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="📥" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                        <TextBlock Text="Arraste o arquivo JSON da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="#E0E0E0" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Ou clique para navegar no computador" FontSize="11" Foreground="#666666" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Arraste o arquivo JSON da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Ou clique para navegar no computador" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- Painel de Auditoria da Carga -->
-            <Border Grid.Column="1" Background="#0D0D0D" CornerRadius="8" Padding="15">
+            <Border Grid.Column="1" Background="{StaticResource CardBgBrush}" CornerRadius="8" Padding="15">
                 <StackPanel>
-                    <TextBlock Text="DETALHES DA CARGA IMPORTADA" FontSize="11" FontWeight="Bold" Foreground="#888888" Margin="0,0,0,12"/>
+                    <TextBlock Text="DETALHES DA CARGA IMPORTADA" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12"/>
                     
                     <Grid Margin="0,0,0,8">
-                        <TextBlock Text="Depósito Origem:" Foreground="#888888" FontSize="12"/>
-                        <TextBlock Text="{Binding Origem}" Foreground="#E0E0E0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        <TextBlock Text="Depósito Origem:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                        <TextBlock Text="{Binding Origem}" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <Grid Margin="0,0,0,8">
-                        <TextBlock Text="Escola Destino:" Foreground="#888888" FontSize="12"/>
-                        <TextBlock Text="{Binding Destino}" Foreground="#E0E0E0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        <TextBlock Text="Escola Destino:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                        <TextBlock Text="{Binding Destino}" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <Grid Margin="0,0,0,15">
-                        <TextBlock Text="Total de Produtos:" Foreground="#888888" FontSize="12"/>
-                        <TextBlock Text="{Binding TotalItens}" Foreground="#38E54D" FontSize="13" FontWeight="Bold" HorizontalAlignment="Right"/>
+                        <TextBlock Text="Total de Produtos:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                        <TextBlock Text="{Binding TotalItens}" Foreground="{StaticResource SuccessBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <Separator Background="#333333" Margin="0,0,0,15"/>
+                    <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
                     <!-- Ações de Automação -->
                     <Grid>
@@ -155,9 +166,9 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             
-            <TextBlock Grid.Row="0" Text="LOG DE EXECUÇÃO EM TEMPO REAL" FontSize="11" FontWeight="Bold" Foreground="#888888" Margin="0,0,0,5"/>
+            <TextBlock Grid.Row="0" Text="LOG DE EXECUÇÃO EM TEMPO REAL" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
             
-            <Border Grid.Row="1" Background="#070707" CornerRadius="8" BorderBrush="#222222" BorderThickness="1">
+            <Border Grid.Row="1" Background="#070707" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                 <TextBox x:Name="TxtLog"
                          Text="{Binding LogOutput, Mode=OneWay}"
                          Background="Transparent"
@@ -175,17 +186,17 @@
         </Grid>
 
         <!-- Barra de Progresso Visual (Posicionada na Base) -->
-        <Border Grid.Row="3" Background="#0D0D0D" CornerRadius="8" Padding="15">
+        <Border Grid.Row="3" Background="{StaticResource CardBgBrush}" CornerRadius="8" Padding="15">
             <StackPanel>
                 <Grid Margin="0,0,0,8">
-                    <TextBlock Text="{Binding ProgressoMensagem}" FontSize="12" Foreground="#CCCCCC"/>
-                    <TextBlock Text="{Binding ProgressoPercent, StringFormat={}{0:0}%}" FontSize="12" FontWeight="Bold" Foreground="#38E54D" HorizontalAlignment="Right"/>
+                    <TextBlock Text="{Binding ProgressoMensagem}" FontSize="12" Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock Text="{Binding ProgressoPercent, StringFormat={}{0:0}%}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Right"/>
                 </Grid>
                 <ProgressBar Height="10" 
                              Minimum="0" 
                              Maximum="100" 
                              Value="{Binding ProgressoPercent}" 
-                             Foreground="#38E54D" 
+                             Foreground="{StaticResource PrimaryBrush}" 
                              Background="#050505"
                              BorderThickness="0"/>
             </StackPanel>

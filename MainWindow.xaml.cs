@@ -38,7 +38,7 @@ namespace TransferToolRPA
                 if (sender is Border border)
                 {
                     // Destaca a borda visualmente ao arrastar o arquivo por cima
-                    border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D2D"));
+                    border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#202329"));
                 }
             }
             else
@@ -51,7 +51,7 @@ namespace TransferToolRPA
         {
             if (sender is Border border)
             {
-                border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+                border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16181C"));
             }
         }
 
@@ -59,7 +59,7 @@ namespace TransferToolRPA
         {
             if (sender is Border border)
             {
-                border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
+                border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16181C"));
             }
 
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
