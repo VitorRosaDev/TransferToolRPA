@@ -29,28 +29,63 @@ namespace TransferToolRPA.Models
             ReportProgress("Conectando ao navegador Chrome/Edge ativo (porta 9222)...", 5);
             
             string cdpUrl = "http://127.0.0.1:9222";
-            string wsUrl = cdpUrl;
+            string? wsUrl = null;
+            bool conectado = false;
 
+            // Tentativa 1: Conectar a uma instância já rodando
             try
             {
-                using var httpClient = new System.Net.Http.HttpClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(3);
-                string json = await httpClient.GetStringAsync($"{cdpUrl}/json/version");
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
+                wsUrl = await ObterWebSocketUrlAsync(cdpUrl);
+                conectado = !string.IsNullOrEmpty(wsUrl);
+            }
+            catch
+            {
+                // Silencioso, tentará iniciar o navegador na sequência
+            }
+
+            if (!conectado)
+            {
+                ReportProgress("Navegador não encontrado. Tentando iniciar o Chrome/Edge com depuração...", 7);
+                
+                string? navegadorPath = LocalizarChromeOuEdge();
+                if (navegadorPath != null)
                 {
-                    string? url = wsProp.GetString();
-                    if (!string.IsNullOrEmpty(url))
+                    try
                     {
-                        wsUrl = url.Replace("localhost", "127.0.0.1");
+                        IniciarNavegadorComDepuracao(navegadorPath);
+                        // Aguarda e tenta se conectar até 6 vezes (total de 6 segundos)
+                        for (int i = 0; i < 6; i++)
+                        {
+                            _cancellationToken.ThrowIfCancellationRequested();
+                            await Task.Delay(1000);
+                            try
+                            {
+                                wsUrl = await ObterWebSocketUrlAsync(cdpUrl);
+                                if (!string.IsNullOrEmpty(wsUrl))
+                                {
+                                    conectado = true;
+                                    break;
+                                }
+                            }
+                            catch
+                            {
+                                // Continua tentando no próximo segundo
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportProgress($"[AVISO] Falha ao tentar disparar o processo do navegador: {ex.Message}", 7);
                     }
                 }
             }
-            catch (Exception ex)
+
+            if (!conectado || string.IsNullOrEmpty(wsUrl))
             {
                 throw new InvalidOperationException(
-                    "Não foi possível conectar ao navegador ativo. Certifique-se de que o Google Chrome " +
-                    "ou Edge foi iniciado com a flag de depuração habilitada: --remote-debugging-port=9222", ex);
+                    "Não foi possível conectar ao navegador ativo na porta 9222. " +
+                    "Certifique-se de que o Google Chrome ou Edge foi iniciado com a flag de depuração habilitada: " +
+                    "--remote-debugging-port=9222\nSe o navegador já estiver aberto, feche todas as abas pessoais e processos do Chrome e tente novamente.");
             }
 
             IBrowser browser;
@@ -227,6 +262,54 @@ namespace TransferToolRPA.Models
         private void ReportProgress(string mensagem, double progresso)
         {
             _progressReporter.Report((mensagem, Math.Clamp(progresso, 0, 100)));
+        }
+
+        private async Task<string?> ObterWebSocketUrlAsync(string cdpUrl)
+        {
+            using var httpClient = new System.Net.Http.HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(2);
+            string json = await httpClient.GetStringAsync($"{cdpUrl}/json/version");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
+            {
+                string? url = wsProp.GetString();
+                if (!string.IsNullOrEmpty(url))
+                {
+                    return url.Replace("localhost", "127.0.0.1");
+                }
+            }
+            return null;
+        }
+
+        private string? LocalizarChromeOuEdge()
+        {
+            string[] caminhos = new[]
+            {
+                @"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+            };
+
+            return caminhos.FirstOrDefault(System.IO.File.Exists);
+        }
+
+        private void IniciarNavegadorComDepuracao(string path)
+        {
+            string profilePath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
+                "TransferToolRPA", "ChromeProfile");
+
+            System.IO.Directory.CreateDirectory(profilePath);
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                Arguments = $"--remote-debugging-port=9222 --user-data-dir=\"{profilePath}\" --no-first-run --no-default-browser-check",
+                UseShellExecute = true
+            };
+
+            System.Diagnostics.Process.Start(startInfo);
         }
     }
 }

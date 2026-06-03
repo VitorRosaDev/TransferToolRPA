@@ -72,7 +72,7 @@
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Row 0: Cabecalho -->
-            <RowDefinition Height="180"/>  <!-- Row 1: Área Central -->
+            <RowDefinition Height="Auto"/> <!-- Row 1: Área Central (Ajuste de Clipping dos Botões) -->
             <RowDefinition Height="*"/>    <!-- Row 2: Logs de Execução (Achatado) -->
             <RowDefinition Height="Auto"/> <!-- Row 3: Barra de Progresso (Base) -->
         </Grid.RowDefinitions>
@@ -84,7 +84,7 @@
         </StackPanel>
 
         <!-- Área Central (Upload e Dados de Carga) -->
-        <Grid Grid.Row="1" Margin="0,0,0,15">
+        <Grid Grid.Row="1" Margin="0,0,0,15" MinHeight="195">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="320"/>
