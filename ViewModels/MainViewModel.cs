@@ -1,5 +1,7 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Input;
@@ -14,15 +16,13 @@ namespace TransferToolRPA.ViewModels
         private readonly ILoggerService _loggerService;
 
         private string _jsonFilePath = string.Empty;
-        private string _origem = "-";
-        private string _destino = "-";
-        private int _totalItens = 0;
         private double _progressoPercent = 0;
         private string _progressoMensagem = "Aguardando importação de arquivo JSON...";
         private string _logOutput = string.Empty;
         private bool _isExecuting = false;
         
-        public TransferenciaPayload? Payload { get; private set; }
+        public ObservableCollection<TransferenciaPayload> CargasImportadas { get; } = new();
+        public TransferenciaPayload? Payload => CargasImportadas.FirstOrDefault();
         public CancellationTokenSource? Cts { get; set; }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -31,24 +31,6 @@ namespace TransferToolRPA.ViewModels
         {
             get => _jsonFilePath;
             set { _jsonFilePath = value; OnPropertyChanged(); }
-        }
-
-        public string Origem
-        {
-            get => _origem;
-            set { _origem = value; OnPropertyChanged(); }
-        }
-
-        public string Destino
-        {
-            get => _destino;
-            set { _destino = value; OnPropertyChanged(); }
-        }
-
-        public int TotalItens
-        {
-            get => _totalItens;
-            set { _totalItens = value; OnPropertyChanged(); }
         }
 
         public double ProgressoPercent
@@ -83,6 +65,7 @@ namespace TransferToolRPA.ViewModels
         public ICommand ImportarJsonCommand { get; }
         public ICommand IniciarAutomacaoCommand { get; }
         public ICommand CancelarAutomacaoCommand { get; }
+        public ICommand ExcluirCargaCommand { get; }
 
         public MainViewModel(
             IPayloadService payloadService,
@@ -104,31 +87,18 @@ namespace TransferToolRPA.ViewModels
                 }
             };
 
+            CargasImportadas.CollectionChanged += (s, e) =>
+            {
+                OnPropertyChanged(nameof(Payload));
+                CommandManager.InvalidateRequerySuggested();
+            };
+
             ImportarJsonCommand = new ImportarCargaCommand(this, payloadService, loggerService);
             IniciarAutomacaoCommand = new IniciarAutomacaoCommand(this, automationService, loggerService);
             CancelarAutomacaoCommand = new CancelarAutomacaoCommand(this, loggerService);
+            ExcluirCargaCommand = new ExcluirCargaCommand(this, loggerService);
 
             _loggerService.Log("Aplicativo inicializado. Pronto para receber cargas do TransferTool Mobile.");
-        }
-
-        /// <summary>
-        /// Atualiza o payload e sincroniza as propriedades associadas na View.
-        /// </summary>
-        public void SetPayload(TransferenciaPayload? payload)
-        {
-            Payload = payload;
-            if (payload != null)
-            {
-                Origem = payload.codigo_origem;
-                Destino = payload.codigo_destino;
-                TotalItens = payload.itens.Length;
-            }
-            else
-            {
-                Origem = "-";
-                Destino = "-";
-                TotalItens = 0;
-            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? name = null)

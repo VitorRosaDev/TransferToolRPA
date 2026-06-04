@@ -48,13 +48,27 @@ namespace TransferToolRPA.Commands
 
             try
             {
-                var payload = _viewModel.Payload;
                 var token = _viewModel.Cts.Token;
 
-                await Task.Run(async () => await _automationService.ExecutarAutomacaoAsync(payload, progress, token), token);
+                while (_viewModel.CargasImportadas.Count > 0)
+                {
+                    token.ThrowIfCancellationRequested();
 
-                _loggerService.LogSuccess("Automação concluída sem erros.");
-                _viewModel.SetPayload(null); // Limpa o payload processado
+                    var payload = _viewModel.CargasImportadas[0];
+                    _loggerService.Log($"[FILA] Iniciando automação da carga para o destino: {payload.codigo_destino} (Cargas restantes: {_viewModel.CargasImportadas.Count})...");
+
+                    await Task.Run(async () => await _automationService.ExecutarAutomacaoAsync(payload, progress, token), token);
+
+                    _loggerService.LogSuccess($"[FILA] Carga para o destino {payload.codigo_destino} concluída com sucesso.");
+
+                    System.Windows.Application.Current.Dispatcher.Invoke(() => 
+                    {
+                        _viewModel.CargasImportadas.RemoveAt(0);
+                    });
+                }
+
+                _viewModel.ProgressoMensagem = "Fila de processamento concluída.";
+                _viewModel.ProgressoPercent = 100;
             }
             catch (OperationCanceledException)
             {

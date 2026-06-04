@@ -43,7 +43,7 @@ namespace TransferToolRPA.Commands
                 _loggerService.Log($"Carregando payload JSON: {Path.GetFileName(filePath)}...");
                 var payload = _payloadService.CarregarEValidar(filePath);
 
-                _viewModel.SetPayload(payload);
+                _viewModel.CargasImportadas.Add(payload);
 
                 _viewModel.ProgressoPercent = 0;
                 _viewModel.ProgressoMensagem = "Carga carregada com sucesso! Pronto para iniciar.";
@@ -51,7 +51,6 @@ namespace TransferToolRPA.Commands
             }
             catch (Exception ex)
             {
-                _viewModel.SetPayload(null);
                 _viewModel.ProgressoPercent = 0;
                 _viewModel.ProgressoMensagem = "Falha ao carregar o arquivo JSON.";
                 _loggerService.LogError($"Falha na importação: {ex.Message}");

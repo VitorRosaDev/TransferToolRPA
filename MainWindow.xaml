@@ -67,14 +67,73 @@
             <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
         </Style>
+
+        <!-- Estilo para os itens do ListBox (removendo azul padrão de seleção) -->
+        <Style x:Key="RpaListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#202329"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#252932"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Estilo para o botão de lixeira (Trash Button) -->
+        <Style x:Key="TrashButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#71767A"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#331A1C"/>
+                                <Setter Property="Foreground" Value="#F4212E"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#4C1F22"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Row 0: Cabecalho -->
-            <RowDefinition Height="Auto"/> <!-- Row 1: Área Central (Ajuste de Clipping dos Botões) -->
-            <RowDefinition Height="*"/>    <!-- Row 2: Logs de Execução (Achatado) -->
-            <RowDefinition Height="Auto"/> <!-- Row 3: Barra de Progresso (Base) -->
+            <RowDefinition Height="*" MinHeight="195"/> <!-- Row 1: Área Central (Editável) -->
+            <RowDefinition Height="Auto"/> <!-- Row 2: Divisor de Arrastar (GridSplitter) -->
+            <RowDefinition Height="*" MinHeight="100"/> <!-- Row 3: Logs de Execução -->
+            <RowDefinition Height="Auto"/> <!-- Row 4: Barra de Progresso (Base) -->
         </Grid.RowDefinitions>
 
         <!-- Cabeçalho Principal -->
@@ -114,30 +173,66 @@
                 </Grid>
             </Border>
 
-            <!-- Painel de Auditoria da Carga -->
+            <!-- Painel de Fila de Cargas Importadas -->
             <Border Grid.Column="1" Background="{StaticResource CardBgBrush}" CornerRadius="8" Padding="15">
-                <StackPanel>
-                    <TextBlock Text="DETALHES DA CARGA IMPORTADA" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12"/>
-                    
-                    <Grid Margin="0,0,0,8">
-                        <TextBlock Text="Depósito Origem:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
-                        <TextBlock Text="{Binding Origem}" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                    </Grid>
-                    
-                    <Grid Margin="0,0,0,8">
-                        <TextBlock Text="Escola Destino:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
-                        <TextBlock Text="{Binding Destino}" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                    </Grid>
-                    
-                    <Grid Margin="0,0,0,15">
-                        <TextBlock Text="Total de Produtos:" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
-                        <TextBlock Text="{Binding TotalItens}" Foreground="{StaticResource SuccessBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Right"/>
-                    </Grid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Título -->
+                        <RowDefinition Height="*"/>    <!-- ListBox Scrollável -->
+                        <RowDefinition Height="Auto"/> <!-- Separador -->
+                        <RowDefinition Height="Auto"/> <!-- Ações -->
+                    </Grid.RowDefinitions>
 
-                    <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
+                    <TextBlock Grid.Row="0" Text="CARGAS IMPORTADAS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+                    
+                    <ListBox Grid.Row="1" 
+                             ItemsSource="{Binding CargasImportadas}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             HorizontalContentAlignment="Stretch"
+                             Margin="0,0,0,10"
+                             ItemContainerStyle="{StaticResource RpaListBoxItemStyle}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderBrush}" 
+                                        BorderThickness="0,0,0,1" 
+                                        Padding="5,8"
+                                        Background="Transparent">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding codigo_destino, StringFormat='Destino: {0}'}" 
+                                                       FontWeight="Bold" 
+                                                       FontSize="13" 
+                                                       Foreground="{StaticResource TextBrush}"/>
+                                            <TextBlock Text="{Binding itens.Length, StringFormat={}{0} itens cadastrados}" 
+                                                       FontSize="11" 
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" 
+                                                Content="🗑️" 
+                                                Command="{Binding DataContext.ExcluirCargaCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource TrashButtonStyle}"
+                                                ToolTip="Excluir carga da fila"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Separator Grid.Row="2" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
                     <!-- Ações de Automação -->
-                    <Grid>
+                    <Grid Grid.Row="3">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
@@ -155,12 +250,22 @@
                                 Style="{StaticResource CancelarButtonStyle}"
                                 Margin="5,0,0,0"/>
                     </Grid>
-                </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 
+        <!-- Divisor para redimensionamento vertical da Área Central -->
+        <GridSplitter Grid.Row="2" 
+                      Height="5" 
+                      HorizontalAlignment="Stretch" 
+                      VerticalAlignment="Center" 
+                      Background="{StaticResource BorderBrush}" 
+                      ShowsPreview="True" 
+                      Margin="0,0,0,15"
+                      Cursor="SizeNS"/>
+
         <!-- Logs de Execução em tempo real (Achatado e Compactado) -->
-        <Grid Grid.Row="2" Margin="0,0,0,15">
+        <Grid Grid.Row="3" Margin="0,0,0,15">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -186,7 +291,7 @@
         </Grid>
 
         <!-- Barra de Progresso Visual (Posicionada na Base) -->
-        <Border Grid.Row="3" Background="{StaticResource CardBgBrush}" CornerRadius="8" Padding="15">
+        <Border Grid.Row="4" Background="{StaticResource CardBgBrush}" CornerRadius="8" Padding="15">
             <StackPanel>
                 <Grid Margin="0,0,0,8">
                     <TextBlock Text="{Binding ProgressoMensagem}" FontSize="12" Foreground="{StaticResource TextBrush}"/>
