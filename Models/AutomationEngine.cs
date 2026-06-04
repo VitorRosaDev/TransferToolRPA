@@ -114,10 +114,10 @@ namespace TransferToolRPA.Models
             ReportProgress("Acessando tela de inclusão de transferência...", 15);
             
             // Clica no botão de dropdown "Transferências" (nome de rotina 543 no Atende.Net)
-            await page.ClickAsync("span.estrutura_botao_acao[name='543'], text=Transferências");
+            await page.ClickAsync("span.estrutura_botao_acao[name='543'], span.estrutura_botao_acao:has-text('Transferências')");
             
             // Clica em "Incluir" ou "Incluir transferência" (ação 102) no menu flutuante que surge
-            await page.ClickAsync(".div_context_flutuante text=Incluir, span.estrutura_botao_acao[name='102'], text=Incluir transferência, text=Incluir");
+            await page.ClickAsync(".div_context_flutuante span[name='102'], .div_context_flutuante span:has-text('Incluir'), span[name='102']");
 
             // Aguarda a tela de inclusão carregar (esperando o seletor do depósito de origem ou autocomplete do Atende.Net)
             await page.WaitForSelectorAsync("input[name='saida_depcodigo'], input[name='deposito_origem'], #origem_codigo");
@@ -174,8 +174,8 @@ namespace TransferToolRPA.Models
                     {
                         await page.ClickAsync("button.btn-config-consulta, #btn-configurar");
                         await page.CheckAsync("input[type='checkbox'][name='validade'], #chk-validade");
-                        await page.ClickAsync("text=Aplicar Colunas, button#btn-aplicar");
-                        await page.ClickAsync("text=Fechar, button.btn-close");
+                        await page.ClickAsync("button#btn-aplicar, button:has-text('Aplicar Colunas'), button:has-text('Aplicar')");
+                        await page.ClickAsync("button.btn-close, button:has-text('Fechar')");
                     }
                 }
                 catch (Exception)
@@ -248,7 +248,7 @@ namespace TransferToolRPA.Models
                 await page.FillAsync("input[name='quantidade_transferir'], #quantidade_item", item.quantidade.ToString());
 
                 // Clica em "Incluir" para jogar no carrinho da transferência
-                await page.ClickAsync("button#btn-incluir, text=Incluir");
+                await page.ClickAsync("button#btn-incluir, button:has-text('Incluir'), input[value='Incluir']");
 
                 // Aguarda o item aparecer na lista de itens incluídos (carrinho de transferência)
                 await page.WaitForSelectorAsync("table#tabela-incluidos, table.grid-itens-incluidos");
@@ -260,12 +260,12 @@ namespace TransferToolRPA.Models
 
             // PASSO 10: Ao final da lista, clicar no botão "Confirmar"
             ReportProgress("Finalizando lista. Clicando em Confirmar transferência...", 92);
-            await page.ClickAsync("button#btn-confirmar, text=Confirmar");
+            await page.ClickAsync("button#btn-confirmar, button:has-text('Confirmar'), button:has-text('Gravar')");
 
             // Verifica se aparece pop-up pedindo confirmação do sistema
             try
             {
-                var popupConfirmar = page.Locator("text=Sim, text=Confirmar Transação, button.btn-confirm-popup");
+                var popupConfirmar = page.Locator("button:has-text('Sim'), span:has-text('Sim'), button.btn-confirm-popup");
                 // Espera de forma assíncrona por até 3 segundos que o botão de confirmação esteja visível
                 await popupConfirmar.WaitForAsync(new LocatorWaitForOptions 
                 { 
