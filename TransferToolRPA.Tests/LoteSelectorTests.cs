@@ -83,5 +83,43 @@ namespace TransferToolRPA.Tests
             Assert.Equal(loteMenorQtd, resultado);
             Assert.Equal(1, resultado.Index);
         }
+
+        [Fact]
+        public void SelecionarMelhorLote_MultiplosLotesEmpatadosEmQuantidadeEValidade_DeveRetornarOPrimeiroInserido()
+        {
+            // Arrange
+            var validadeComum = DateTime.Today.AddDays(10);
+            var lote1 = new LoteDisponivel(0, validadeComum, 100);
+            var lote2 = new LoteDisponivel(1, validadeComum, 100); // Mesmo saldo
+            var lote3 = new LoteDisponivel(2, validadeComum, 100); // Mesmo saldo
+            var lotes = new List<LoteDisponivel> { lote2, lote1, lote3 };
+
+            // Act
+            var resultado = LoteSelector.SelecionarMelhorLote(lotes);
+
+            // Assert
+            Assert.NotNull(resultado);
+            Assert.Equal(lote2, resultado); // Primeiro lote da lista sob empate total
+        }
+
+        [Fact]
+        public void SelecionarMelhorLote_FormatosDeDataUTCePlano_DeveEscolherValidadeMaisAntiga()
+        {
+            // Arrange
+            var validadeAntiga = DateTime.Parse("2026-06-01");
+            var validadeNova = DateTime.Parse("2026-06-15");
+
+            var loteNovo = new LoteDisponivel(0, validadeNova, 10);
+            var loteAntigo = new LoteDisponivel(1, validadeAntiga, 100);
+            var lotes = new List<LoteDisponivel> { loteNovo, loteAntigo };
+
+            // Act
+            var resultado = LoteSelector.SelecionarMelhorLote(lotes);
+
+            // Assert
+            Assert.NotNull(resultado);
+            Assert.Equal(loteAntigo, resultado);
+            Assert.Equal(1, resultado.Index);
+        }
     }
 }
