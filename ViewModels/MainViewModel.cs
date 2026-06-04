@@ -66,6 +66,7 @@ namespace TransferToolRPA.ViewModels
         public ICommand IniciarAutomacaoCommand { get; }
         public ICommand CancelarAutomacaoCommand { get; }
         public ICommand ExcluirCargaCommand { get; }
+        public ICommand AbrirNavegadorCommand { get; }
 
         public MainViewModel(
             IPayloadService payloadService,
@@ -97,6 +98,7 @@ namespace TransferToolRPA.ViewModels
             IniciarAutomacaoCommand = new IniciarAutomacaoCommand(this, automationService, loggerService);
             CancelarAutomacaoCommand = new CancelarAutomacaoCommand(this, loggerService);
             ExcluirCargaCommand = new ExcluirCargaCommand(this, loggerService);
+            AbrirNavegadorCommand = new AbrirNavegadorCommand(this, loggerService);
 
             _loggerService.Log("Aplicativo inicializado. Pronto para receber cargas do TransferTool Mobile.");
         }

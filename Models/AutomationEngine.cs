@@ -47,12 +47,10 @@ namespace TransferToolRPA.Models
             {
                 ReportProgress("Navegador não encontrado. Tentando iniciar o Chrome/Edge com depuração...", 7);
                 
-                string? navegadorPath = LocalizarChromeOuEdge();
-                if (navegadorPath != null)
+                try
                 {
-                    try
+                    if (NavegadorHelper.IniciarNavegadorComDepuracao())
                     {
-                        IniciarNavegadorComDepuracao(navegadorPath);
                         // Aguarda e tenta se conectar até 6 vezes (total de 6 segundos)
                         for (int i = 0; i < 6; i++)
                         {
@@ -73,10 +71,10 @@ namespace TransferToolRPA.Models
                             }
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        ReportProgress($"[AVISO] Falha ao tentar disparar o processo do navegador: {ex.Message}", 7);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    ReportProgress($"[AVISO] Falha ao tentar disparar o processo do navegador: {ex.Message}", 7);
                 }
             }
 
@@ -279,37 +277,6 @@ namespace TransferToolRPA.Models
                 }
             }
             return null;
-        }
-
-        private string? LocalizarChromeOuEdge()
-        {
-            string[] caminhos = new[]
-            {
-                @"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-                @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-                @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-            };
-
-            return caminhos.FirstOrDefault(System.IO.File.Exists);
-        }
-
-        private void IniciarNavegadorComDepuracao(string path)
-        {
-            string profilePath = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
-                "TransferToolRPA", "ChromeProfile");
-
-            System.IO.Directory.CreateDirectory(profilePath);
-
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = path,
-                Arguments = $"--remote-debugging-port=9222 --user-data-dir=\"{profilePath}\" --no-first-run --no-default-browser-check",
-                UseShellExecute = true
-            };
-
-            System.Diagnostics.Process.Start(startInfo);
         }
     }
 }

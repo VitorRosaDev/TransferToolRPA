@@ -137,10 +137,27 @@
         </Grid.RowDefinitions>
 
         <!-- Cabeçalho Principal -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,15">
-            <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
-            <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+                <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+            </StackPanel>
+
+            <Button Grid.Column="1" 
+                    Content="🌐 Abrir Chrome" 
+                    Command="{Binding AbrirNavegadorCommand}"
+                    Style="{StaticResource IniciarButtonStyle}"
+                    Width="160"
+                    Height="40"
+                    FontSize="13"
+                    VerticalAlignment="Center"
+                    ToolTip="Abre o navegador isolado com depuração na porta 9222"/>
+        </Grid>
 
         <!-- Área Central (Upload e Dados de Carga) -->
         <Grid Grid.Row="1" Margin="0,0,0,15" MinHeight="195">
