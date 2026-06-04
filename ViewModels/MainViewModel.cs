@@ -14,6 +14,7 @@ namespace TransferToolRPA.ViewModels
     public class MainViewModel : INotifyPropertyChanged
     {
         private readonly ILoggerService _loggerService;
+        private readonly ICargaQueueService _cargaQueueService;
 
         private string _jsonFilePath = string.Empty;
         private double _progressoPercent = 0;
@@ -21,7 +22,7 @@ namespace TransferToolRPA.ViewModels
         private string _logOutput = string.Empty;
         private bool _isExecuting = false;
         
-        public ObservableCollection<TransferenciaPayload> CargasImportadas { get; } = new();
+        public ObservableCollection<TransferenciaPayload> CargasImportadas => _cargaQueueService.Queue;
         public TransferenciaPayload? Payload => CargasImportadas.FirstOrDefault();
         public CancellationTokenSource? Cts { get; set; }
 
@@ -71,9 +72,11 @@ namespace TransferToolRPA.ViewModels
         public MainViewModel(
             IPayloadService payloadService,
             IAutomationService automationService,
-            ILoggerService loggerService)
+            ILoggerService loggerService,
+            ICargaQueueService cargaQueueService)
         {
             _loggerService = loggerService;
+            _cargaQueueService = cargaQueueService;
 
             // Inscreve a propriedade LogOutput para reagir ao serviço de Logs
             _loggerService.OnLogAdded += line =>
@@ -88,16 +91,17 @@ namespace TransferToolRPA.ViewModels
                 }
             };
 
-            CargasImportadas.CollectionChanged += (s, e) =>
+            // Escuta a fila de cargas do serviço de forma desacoplada
+            _cargaQueueService.OnQueueChanged += () =>
             {
                 OnPropertyChanged(nameof(Payload));
                 CommandManager.InvalidateRequerySuggested();
             };
 
-            ImportarJsonCommand = new ImportarCargaCommand(this, payloadService, loggerService);
-            IniciarAutomacaoCommand = new IniciarAutomacaoCommand(this, automationService, loggerService);
+            ImportarJsonCommand = new ImportarCargaCommand(this, payloadService, loggerService, _cargaQueueService);
+            IniciarAutomacaoCommand = new IniciarAutomacaoCommand(this, automationService, loggerService, _cargaQueueService);
             CancelarAutomacaoCommand = new CancelarAutomacaoCommand(this, loggerService);
-            ExcluirCargaCommand = new ExcluirCargaCommand(this, loggerService);
+            ExcluirCargaCommand = new ExcluirCargaCommand(this, loggerService, _cargaQueueService);
             AbrirNavegadorCommand = new AbrirNavegadorCommand(this, loggerService);
 
             _loggerService.Log("Aplicativo inicializado. Pronto para receber cargas do TransferTool Mobile.");

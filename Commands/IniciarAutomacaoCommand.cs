@@ -12,6 +12,7 @@ namespace TransferToolRPA.Commands
         private readonly MainViewModel _viewModel;
         private readonly IAutomationService _automationService;
         private readonly ILoggerService _loggerService;
+        private readonly ICargaQueueService _cargaQueueService;
 
         public event EventHandler? CanExecuteChanged
         {
@@ -19,11 +20,12 @@ namespace TransferToolRPA.Commands
             remove => CommandManager.RequerySuggested -= value;
         }
 
-        public IniciarAutomacaoCommand(MainViewModel viewModel, IAutomationService automationService, ILoggerService loggerService)
+        public IniciarAutomacaoCommand(MainViewModel viewModel, IAutomationService automationService, ILoggerService loggerService, ICargaQueueService cargaQueueService)
         {
             _viewModel = viewModel;
             _automationService = automationService;
             _loggerService = loggerService;
+            _cargaQueueService = cargaQueueService;
         }
 
         public bool CanExecute(object? parameter)
@@ -50,12 +52,12 @@ namespace TransferToolRPA.Commands
             {
                 var token = _viewModel.Cts.Token;
 
-                while (_viewModel.CargasImportadas.Count > 0)
+                while (_cargaQueueService.Queue.Count > 0)
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var payload = _viewModel.CargasImportadas[0];
-                    _loggerService.Log($"[FILA] Iniciando automação da carga para o destino: {payload.codigo_destino} (Cargas restantes: {_viewModel.CargasImportadas.Count})...");
+                    var payload = _cargaQueueService.Queue[0];
+                    _loggerService.Log($"[FILA] Iniciando automação da carga para o destino: {payload.codigo_destino} (Cargas restantes: {_cargaQueueService.Queue.Count})...");
 
                     await Task.Run(async () => await _automationService.ExecutarAutomacaoAsync(payload, progress, token), token);
 
@@ -63,7 +65,7 @@ namespace TransferToolRPA.Commands
 
                     System.Windows.Application.Current.Dispatcher.Invoke(() => 
                     {
-                        _viewModel.CargasImportadas.RemoveAt(0);
+                        _cargaQueueService.Dequeue(out _);
                     });
                 }
 

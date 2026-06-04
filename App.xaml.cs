@@ -15,9 +15,10 @@ namespace TransferToolRPA
             ILoggerService loggerService = new ObservableLoggerService();
             IPayloadService payloadService = new PayloadService();
             IAutomationService automationService = new PlaywrightAutomationService();
+            ICargaQueueService cargaQueueService = new CargaQueueService();
 
             // Inicialização da ViewModel passando as dependências do Clean Architecture
-            var viewModel = new MainViewModel(payloadService, automationService, loggerService);
+            var viewModel = new MainViewModel(payloadService, automationService, loggerService, cargaQueueService);
 
             // Inicialização da View injetando a ViewModel
             var mainWindow = new MainWindow(viewModel);

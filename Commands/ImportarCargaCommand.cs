@@ -11,6 +11,7 @@ namespace TransferToolRPA.Commands
         private readonly MainViewModel _viewModel;
         private readonly IPayloadService _payloadService;
         private readonly ILoggerService _loggerService;
+        private readonly ICargaQueueService _cargaQueueService;
 
         public event EventHandler? CanExecuteChanged
         {
@@ -18,11 +19,12 @@ namespace TransferToolRPA.Commands
             remove => CommandManager.RequerySuggested -= value;
         }
 
-        public ImportarCargaCommand(MainViewModel viewModel, IPayloadService payloadService, ILoggerService loggerService)
+        public ImportarCargaCommand(MainViewModel viewModel, IPayloadService payloadService, ILoggerService loggerService, ICargaQueueService cargaQueueService)
         {
             _viewModel = viewModel;
             _payloadService = payloadService;
             _loggerService = loggerService;
+            _cargaQueueService = cargaQueueService;
         }
 
         public bool CanExecute(object? parameter)
@@ -43,7 +45,7 @@ namespace TransferToolRPA.Commands
                 _loggerService.Log($"Carregando payload JSON: {Path.GetFileName(filePath)}...");
                 var payload = _payloadService.CarregarEValidar(filePath);
 
-                _viewModel.CargasImportadas.Add(payload);
+                _cargaQueueService.Enqueue(payload);
 
                 _viewModel.ProgressoPercent = 0;
                 _viewModel.ProgressoMensagem = "Carga carregada com sucesso! Pronto para iniciar.";

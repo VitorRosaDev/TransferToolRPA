@@ -11,6 +11,7 @@ namespace TransferToolRPA.Commands
     {
         private readonly MainViewModel _viewModel;
         private readonly ILoggerService _loggerService;
+        private readonly ICargaQueueService _cargaQueueService;
 
         public event EventHandler? CanExecuteChanged
         {
@@ -18,10 +19,11 @@ namespace TransferToolRPA.Commands
             remove => CommandManager.RequerySuggested -= value;
         }
 
-        public ExcluirCargaCommand(MainViewModel viewModel, ILoggerService loggerService)
+        public ExcluirCargaCommand(MainViewModel viewModel, ILoggerService loggerService, ICargaQueueService cargaQueueService)
         {
             _viewModel = viewModel;
             _loggerService = loggerService;
+            _cargaQueueService = cargaQueueService;
         }
 
         public bool CanExecute(object? parameter)
@@ -41,7 +43,7 @@ namespace TransferToolRPA.Commands
 
             if (result == MessageBoxResult.Yes)
             {
-                _viewModel.CargasImportadas.Remove(payload);
+                _cargaQueueService.Remove(payload);
                 _loggerService.Log($"Carga para {payload.codigo_destino} excluída da fila pelo operador.");
             }
         }
