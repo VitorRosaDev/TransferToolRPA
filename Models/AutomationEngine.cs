@@ -101,11 +101,49 @@ namespace TransferToolRPA.Models
             var context = browser.Contexts.FirstOrDefault() 
                 ?? throw new InvalidOperationException("Nenhum contexto de navegador ativo encontrado.");
             
-            var page = context.Pages.FirstOrDefault() 
+            var page = context.Pages.FirstOrDefault(p => p.Url.Contains("atende.net"))
+                ?? context.Pages.FirstOrDefault(p => !p.Url.StartsWith("chrome://") && !p.Url.StartsWith("chrome-extension://"))
+                ?? context.Pages.FirstOrDefault()
                 ?? throw new InvalidOperationException("Nenhuma aba activa encontrada no navegador.");
 
             _cancellationToken.ThrowIfCancellationRequested();
-            
+
+            // DUMP TEMPORÁRIO DO DOM PARA ANÁLISE DE SELETORES
+            try
+            {
+                var frames = page.Frames;
+                var dumpPath = @"C:\dev\TransferToolRPA\dom_dump.txt";
+                using (var writer = new System.IO.StreamWriter(dumpPath, false, System.Text.Encoding.UTF8))
+                {
+                    writer.WriteLine($"=== DUMP DO DOM - ABA: {await page.TitleAsync()} - {page.Url} ===");
+                    writer.WriteLine($"Total de frames: {frames.Count}");
+                    for (int i = 0; i < frames.Count; i++)
+                    {
+                        var f = frames[i];
+                        writer.WriteLine($"\n--- FRAME {i} --- Name: '{f.Name}', Url: '{f.Url}'");
+                        try
+                        {
+                            var html = await f.ContentAsync();
+                            writer.WriteLine(html);
+                        }
+                        catch (Exception fex)
+                        {
+                            writer.WriteLine($"Erro ao extrair HTML do frame {i}: {fex.Message}");
+                        }
+                    }
+                }
+                ReportProgress("[DUMP COMPLETO] O DOM foi salvo em dom_dump.txt. Interrompendo para análise.", 10);
+                throw new InvalidOperationException("Parada programada para análise de DOM.");
+            }
+            catch (Exception ex) when (ex.Message.Contains("Parada programada"))
+            {
+                throw;
+            }
+            catch (Exception dex)
+            {
+                ReportProgress($"[AVISO] Erro no dump do DOM: {dex.Message}", 9);
+            }
+
             ReportProgress("Aba localizada! Iniciando o fluxo no Atende.Net...", 10);
 
             // PASSO 4: Clicar em "Transferências" e escolher a opção "Incluir transferência"
