@@ -108,64 +108,36 @@ namespace TransferToolRPA.Models
 
             _cancellationToken.ThrowIfCancellationRequested();
 
-            // DUMP TEMPORÁRIO DO DOM PARA ANÁLISE DE SELETORES
-            try
-            {
-                var frames = page.Frames;
-                var dumpPath = @"C:\dev\TransferToolRPA\dom_dump.txt";
-                using (var writer = new System.IO.StreamWriter(dumpPath, false, System.Text.Encoding.UTF8))
-                {
-                    writer.WriteLine($"=== DUMP DO DOM - ABA: {await page.TitleAsync()} - {page.Url} ===");
-                    writer.WriteLine($"Total de frames: {frames.Count}");
-                    for (int i = 0; i < frames.Count; i++)
-                    {
-                        var f = frames[i];
-                        writer.WriteLine($"\n--- FRAME {i} --- Name: '{f.Name}', Url: '{f.Url}'");
-                        try
-                        {
-                            var html = await f.ContentAsync();
-                            writer.WriteLine(html);
-                        }
-                        catch (Exception fex)
-                        {
-                            writer.WriteLine($"Erro ao extrair HTML do frame {i}: {fex.Message}");
-                        }
-                    }
-                }
-                ReportProgress("[DUMP COMPLETO] O DOM foi salvo em dom_dump.txt. Interrompendo para análise.", 10);
-                throw new InvalidOperationException("Parada programada para análise de DOM.");
-            }
-            catch (Exception ex) when (ex.Message.Contains("Parada programada"))
-            {
-                throw;
-            }
-            catch (Exception dex)
-            {
-                ReportProgress($"[AVISO] Erro no dump do DOM: {dex.Message}", 9);
-            }
-
             ReportProgress("Aba localizada! Iniciando o fluxo no Atende.Net...", 10);
 
             // PASSO 4: Clicar em "Transferências" e escolher a opção "Incluir transferência"
             ReportProgress("Acessando tela de inclusão de transferência...", 15);
             
-            // NOTA: Ajuste estes seletores conforme a classe ou ID real do menu do Atende.Net
-            await page.ClickAsync("text=Transferências");
-            await page.ClickAsync("text=Incluir transferência");
+            // Clica no botão de dropdown "Transferências" (nome de rotina 543 no Atende.Net)
+            await page.ClickAsync("span.estrutura_botao_acao[name='543'], text=Transferências");
+            
+            // Clica em "Incluir" ou "Incluir transferência" (ação 102) no menu flutuante que surge
+            await page.ClickAsync(".div_context_flutuante text=Incluir, span.estrutura_botao_acao[name='102'], text=Incluir transferência, text=Incluir");
 
-            // Aguarda a tela de inclusão carregar (esperando o seletor do depósito de origem)
-            await page.WaitForSelectorAsync("input[name='deposito_origem'], #origem_codigo, select#origem");
+            // Aguarda a tela de inclusão carregar (esperando o seletor do depósito de origem ou autocomplete do Atende.Net)
+            await page.WaitForSelectorAsync("input[name='saida_depcodigo'], input[name='deposito_origem'], #origem_codigo");
 
             _cancellationToken.ThrowIfCancellationRequested();
 
             // PASSO 5: Preencher depósito de origem e destino
             ReportProgress($"Preenchendo Origem: {_payload.codigo_origem} e Destino: {_payload.codigo_destino}...", 25);
             
-            await page.FillAsync("input[name='deposito_origem'], #origem_codigo", _payload.codigo_origem);
-            await page.PressAsync("input[name='deposito_origem'], #origem_codigo", "Tab");
+            var inputOrigem = page.Locator("input[name='saida_depcodigo'], input[name='deposito_origem'], #origem_codigo");
+            await inputOrigem.FillAsync(_payload.codigo_origem);
+            await inputOrigem.PressAsync("Tab");
             
-            await page.FillAsync("input[name='deposito_destino'], #destino_codigo", _payload.codigo_destino);
-            await page.PressAsync("input[name='deposito_destino'], #destino_codigo", "Tab");
+            // Pequeno delay para a requisição de validação AJAX do depósito
+            await Task.Delay(500); 
+            
+            var inputDestino = page.Locator("input[name='entrada_depcodigo'], input[name='deposito_destino'], #destino_codigo");
+            await inputDestino.FillAsync(_payload.codigo_destino);
+            await inputDestino.PressAsync("Tab");
+            await Task.Delay(500);
 
             _cancellationToken.ThrowIfCancellationRequested();
 
@@ -184,8 +156,9 @@ namespace TransferToolRPA.Models
                 _cancellationToken.ThrowIfCancellationRequested();
 
                 // PASSO 6: Digitar código do produto
-                await page.FillAsync("input[name='codigo_produto'], #produto_codigo", item.codigo);
-                await page.PressAsync("input[name='codigo_produto'], #produto_codigo", "Enter");
+                var inputProduto = page.Locator("input[name='prdcodigo'], input[name='codigo_produto'], #produto_codigo");
+                await inputProduto.FillAsync(item.codigo);
+                await inputProduto.PressAsync("Enter");
 
                 // Aguarda o resultado da consulta do produto aparecer no grid/tabela
                 await page.WaitForSelectorAsync("table#tabela-lotes, table.grid-lotes, div.resultado-busca");
@@ -228,17 +201,31 @@ namespace TransferToolRPA.Models
 
                 var lotesList = new System.Collections.Generic.List<LoteDisponivel>();
 
+                // Leitura dinâmica de cabeçalhos para encontrar os índices corretos de Validade e Estoque/Saldo
+                var headers = await page.Locator("table#tabela-lotes th, table.grid-lotes th, .conteudo_grid th").AllInnerTextsAsync();
+                int validadeColIndex = -1;
+                int quantidadeColIndex = -1;
+
+                for (int idx = 0; idx < headers.Count; idx++)
+                {
+                    string hText = headers[idx].ToLower();
+                    if (hText.Contains("validade")) validadeColIndex = idx;
+                    else if (hText.Contains("estoque") || hText.Contains("saldo") || hText.Contains("dispon")) quantidadeColIndex = idx;
+                }
+
+                // Fallbacks padrão caso os nomes de cabeçalho não sejam mapeados
+                if (validadeColIndex == -1) validadeColIndex = 2;
+                if (quantidadeColIndex == -1) quantidadeColIndex = 3;
+
                 for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
-                    
-                    // Supõe que a coluna de validade é a 3ª (index 2) e quantidade é a 4ª (index 3)
-                    // NOTA: Ajuste esses seletores de célula de acordo com as colunas reais do Atende.Net
                     var colunas = await row.Locator("td").AllInnerTextsAsync();
-                    if (colunas.Count >= 3)
+                    
+                    if (colunas.Count > Math.Max(validadeColIndex, quantidadeColIndex))
                     {
-                        string txtValidade = colunas[2]; // Ex: "10/12/2027" ou "2027-12-10"
-                        string txtQuantidade = colunas.Count >= 4 ? colunas[3] : "0"; // Ex: "150" ou "10,0"
+                        string txtValidade = colunas[validadeColIndex]; // Ex: "10/12/2027"
+                        string txtQuantidade = colunas[quantidadeColIndex]; // Ex: "150" ou "10,0"
 
                         if (DateTime.TryParse(txtValidade, out DateTime validadeParsed))
                         {
