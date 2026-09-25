@@ -59,6 +59,8 @@ namespace TransferToolRPA.Services
 
         private void Append(string prefixo, string message, NivelLog nivel)
         {
+            message = SanitizarParaLinhaUnica(message);
+
             string hora = DateTime.Now.ToString("HH:mm:ss");
             string line = $"[{hora}] [{prefixo}] {message}\n";
 
@@ -72,6 +74,17 @@ namespace TransferToolRPA.Services
             PersistirLinha($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{prefixo}] {message}");
 
             OnLogAdded?.Invoke(new LogEntry(line, nivel));
+        }
+
+        /// <summary>
+        /// Remove quebras de linha do texto para evitar que uma mensagem forje
+        /// linhas falsas no log (log injection).
+        /// </summary>
+        private static string SanitizarParaLinhaUnica(string texto)
+        {
+            return texto
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
         }
 
         private void PersistirLinha(string linha)

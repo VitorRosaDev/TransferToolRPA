@@ -19,6 +19,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Playwright" Version="1.44.0" />
+    <!-- Override de segurança: o Microsoft.Playwright 1.44.0 referencia o transitivo
+         System.Text.Json 6.0.0 (vulnerável, GHSA-8g4q-xg66-9fp4). Força a versão corrigida. -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
   <ItemGroup>

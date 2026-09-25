@@ -70,6 +70,28 @@ namespace TransferToolRPA.Tests
             }
         }
 
+        [Fact]
+        public void Log_MensagemComQuebraDeLinha_DeveSanitizarParaUmaUnicaLinha()
+        {
+            string dir = CriarDiretorioTemporario();
+            try
+            {
+                var logger = new ObservableLoggerService(dir);
+                logger.Log("linha1\r\n[02:00:00] [SUCESSO] forjado");
+
+                Assert.Contains("linha1\\r\\n", logger.FullLog);
+                Assert.DoesNotContain("\n[02:00:00] [SUCESSO] forjado", logger.FullLog);
+
+                string conteudo = File.ReadAllText(logger.CaminhoArquivoLog!);
+                string[] linhas = conteudo.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+                Assert.DoesNotContain("[02:00:00] [SUCESSO] forjado", linhas);
+            }
+            finally
+            {
+                RemoverDiretorio(dir);
+            }
+        }
+
         private static string CriarDiretorioTemporario()
             => Path.Combine(Path.GetTempPath(), "TransferToolRPA.Tests", Guid.NewGuid().ToString("N"));
 
