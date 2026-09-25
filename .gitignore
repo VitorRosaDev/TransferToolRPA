@@ -36,3 +36,6 @@ dom_dump_*.html
 
 ## Documentação pessoal de desenvolvimento (vive no vault, não no repo)
 Atlas.md
+
+## Saída do instalador Inno Setup (grande, não versionar)
+installer/Output/
