@@ -12,17 +12,10 @@ namespace TransferToolRPA.Converters
     /// </summary>
     public class NivelLogToBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush Info = Criar("#A3E4D7");
-        private static readonly SolidColorBrush Sucesso = Criar("#00BA7C");
-        private static readonly SolidColorBrush Aviso = Criar("#FFB020");
-        private static readonly SolidColorBrush Erro = Criar("#F4212E");
-
-        private static SolidColorBrush Criar(string hex)
-        {
-            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);
-            brush.Freeze();
-            return brush;
-        }
+        private static readonly SolidColorBrush Info = BrushFactory.Criar("#A3E4D7");
+        private static readonly SolidColorBrush Sucesso = BrushFactory.Criar("#00BA7C");
+        private static readonly SolidColorBrush Aviso = BrushFactory.Criar("#FFB020");
+        private static readonly SolidColorBrush Erro = BrushFactory.Criar("#F4212E");
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {

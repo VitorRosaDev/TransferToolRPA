@@ -7,8 +7,6 @@ namespace TransferToolRPA.Services
 {
     public class PlaywrightAutomationService : IAutomationService
     {
-        private const string CdpUrl = "http://127.0.0.1:9222";
-
         public async Task ExecutarAutomacaoAsync(
             TransferenciaPayload payload,
             IProgress<ProgressoAutomacao> progressReporter,
@@ -27,7 +25,7 @@ namespace TransferToolRPA.Services
         {
             try
             {
-                string? wsUrl = await ObterWebSocketUrlAsync();
+                string? wsUrl = await CdpHelper.ObterWebSocketUrlAsync();
                 if (!string.IsNullOrEmpty(wsUrl))
                 {
                     using var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
@@ -54,25 +52,12 @@ namespace TransferToolRPA.Services
             }
         }
 
-        private static async Task<string?> ObterWebSocketUrlAsync()
-        {
-            using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-            string json = await httpClient.GetStringAsync($"{CdpUrl}/json/version");
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
-            {
-                string? url = wsProp.GetString();
-                if (!string.IsNullOrEmpty(url)) return url.Replace("localhost", "127.0.0.1");
-            }
-            return null;
-        }
-
         private static async Task<bool> Porta9222AtivaAsync()
         {
             try
             {
                 using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-                var resposta = await httpClient.GetAsync($"{CdpUrl}/json/version");
+                var resposta = await httpClient.GetAsync($"{CdpHelper.CdpUrl}/json/version");
                 return resposta.IsSuccessStatusCode;
             }
             catch
@@ -106,7 +91,7 @@ namespace TransferToolRPA.Services
 
                 foreach (var linha in saida.Split(new[] { "\n" }, StringSplitOptions.None))
                 {
-                    if (!linha.Contains(":9222")) continue;
+                    if (!linha.Contains($":{CdpHelper.PortaDepuracao}")) continue;
 
                     var partes = linha.Trim().Split(new[] { " ", "\t" }, StringSplitOptions.RemoveEmptyEntries);
                     if (partes.Length > 0 && int.TryParse(partes[partes.Length - 1], out int pid) && pid > 0)

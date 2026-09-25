@@ -35,7 +35,7 @@ namespace TransferToolRPA
             var viewModel = new MainViewModel(payloadService, automationService, loggerService, cargaQueueService);
 
             // Inicialização da View injetando a ViewModel
-            var mainWindow = new MainWindow(viewModel);
+            var mainWindow = new MainWindow(viewModel, loggerService);
             mainWindow.Show();
         }
 

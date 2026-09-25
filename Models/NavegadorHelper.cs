@@ -36,7 +36,7 @@ namespace TransferToolRPA.Models
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = navegadorPath,
-                    Arguments = $"--remote-debugging-port=9222 --user-data-dir=\"{profilePath}\" --no-first-run --no-default-browser-check \"https://alvorada.atende.net/atende.php?rot=1&aca=1#!/sistema/28\"",
+                    Arguments = $"--remote-debugging-port={CdpHelper.PortaDepuracao} --user-data-dir=\"{profilePath}\" --no-first-run --no-default-browser-check \"https://alvorada.atende.net/atende.php?rot=1&aca=1#!/sistema/28\"",
                     UseShellExecute = true
                 };
 

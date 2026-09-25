@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
+using TransferToolRPA.Converters;
 using TransferToolRPA.Models;
 
 namespace TransferToolRPA.ViewModels
@@ -11,10 +12,10 @@ namespace TransferToolRPA.ViewModels
     /// </summary>
     public class CargaItemViewModel : INotifyPropertyChanged
     {
-        private static readonly Brush CorPendente = Criar("#E7E9EA");
-        private static readonly Brush CorConcluida = Criar("#00BA7C");
-        private static readonly Brush CorParcial = Criar("#FFB020");
-        private static readonly Brush CorNaoEncontrado = Criar("#F4212E");
+        private static readonly Brush CorPendente = BrushFactory.Criar("#E7E9EA");
+        private static readonly Brush CorConcluida = BrushFactory.Criar("#00BA7C");
+        private static readonly Brush CorParcial = BrushFactory.Criar("#FFB020");
+        private static readonly Brush CorNaoEncontrado = BrushFactory.Criar("#F4212E");
 
         private StatusCarga _status = StatusCarga.Pendente;
 
@@ -49,13 +50,6 @@ namespace TransferToolRPA.ViewModels
         public int QuantidadeItens => Payload.itens?.Length ?? 0;
 
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        private static Brush Criar(string hex)
-        {
-            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);
-            brush.Freeze();
-            return brush;
-        }
 
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

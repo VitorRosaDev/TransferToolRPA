@@ -36,13 +36,12 @@ namespace TransferToolRPA.Models
 
             Report("Conectando ao navegador Chrome/Edge ativo (porta 9222)...", 5);
 
-            string cdpUrl = "http://127.0.0.1:9222";
             string? wsUrl = null;
             bool conectado = false;
 
             try
             {
-                wsUrl = await ObterWebSocketUrlAsync(cdpUrl);
+                wsUrl = await CdpHelper.ObterWebSocketUrlAsync();
                 conectado = !string.IsNullOrEmpty(wsUrl);
             }
             catch
@@ -63,7 +62,7 @@ namespace TransferToolRPA.Models
                             await Task.Delay(1000);
                             try
                             {
-                                wsUrl = await ObterWebSocketUrlAsync(cdpUrl);
+                                wsUrl = await CdpHelper.ObterWebSocketUrlAsync();
                                 if (!string.IsNullOrEmpty(wsUrl))
                                 {
                                     conectado = true;
@@ -257,23 +256,6 @@ namespace TransferToolRPA.Models
         private void Report(string mensagem, double progresso, NivelLog nivel = NivelLog.Info, ResultadoItemTransferencia resultado = ResultadoItemTransferencia.Nenhum)
         {
             _progressReporter.Report(new ProgressoAutomacao(mensagem, Math.Clamp(progresso, 0, 100), nivel, resultado));
-        }
-
-        private async Task<string?> ObterWebSocketUrlAsync(string cdpUrl)
-        {
-            using var httpClient = new System.Net.Http.HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(2);
-            string json = await httpClient.GetStringAsync($"{cdpUrl}/json/version");
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
-            {
-                string? url = wsProp.GetString();
-                if (!string.IsNullOrEmpty(url))
-                {
-                    return url.Replace("localhost", "127.0.0.1");
-                }
-            }
-            return null;
         }
     }
 }

@@ -15,14 +15,15 @@ namespace TransferToolRPA
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _viewModel;
-        private readonly ILoggerService _loggerService;
+        // Injetado sempre no construtor (DI manual em App.xaml.cs); o "null!" silencia
+        // a análise de nulidade do WPF para campos readonly de interface.
+        private readonly ILoggerService _loggerService = null!;
 
-        public MainWindow(MainViewModel viewModel)
+        public MainWindow(MainViewModel viewModel, ILoggerService loggerService)
         {
             InitializeComponent();
             _viewModel = viewModel;
-            _loggerService = viewModel.GetType().GetProperty("LoggerService")?.GetValue(viewModel) as ILoggerService
-                ?? viewModel.GetType().GetField("_loggerService", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(viewModel) as ILoggerService;
+            _loggerService = loggerService;
             DataContext = _viewModel;
 
             PosicionarNaLateralDireita();
