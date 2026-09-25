@@ -96,20 +96,34 @@ namespace TransferToolRPA.Tests
         }
 
         [Fact]
-        public async Task FiltrarProdutoAsync_MensagemRegistroNaoEncontrado_RetornaNaoEncontrado()
+        public async Task FiltrarProdutoAsync_MensagemNaoEncontradoResidual_NaoAbortaConsultaComResultado()
         {
+            // Regressão: logo após clicar em "Consultar", o grid ainda exibe o estado da
+            // consulta anterior — inclusive o "Registro não encontrado" de um código que
+            // realmente não tinha estoque. Essa mensagem residual NÃO pode fazer a consulta
+            // atual (que TEM resultado) ser tratada como "não encontrado".
             var mensagem = Substitute.For<ILocator>();
+            var linha = Substitute.For<ILocator>();
 
             _page.Locator(AtendeNetSelectors.FiltroProduto.InputFiltro).Returns(_gradeLocator);
             _gradeLocator.FillAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
             _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
-            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(Array.Empty<ILocator>()));
+
+            // 1ª leitura: grade ainda vazia (estado residual da consulta anterior).
+            // 2ª leitura: o lote do produto filtrado já carregou.
+            _gradeLocator.AllAsync().Returns(
+                Task.FromResult<IReadOnlyList<ILocator>>(Array.Empty<ILocator>()),
+                Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha }));
+
+            // Mensagem "Registro não encontrado" residual continua visível no grid.
             _page.Locator(AtendeNetSelectors.GradeLotes.MensagemNaoEncontrado).Returns(mensagem);
             mensagem.CountAsync().Returns(1);
 
-            var resultado = await _flow.FiltrarProdutoAsync("999999");
+            linha.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("29285");
 
-            Assert.Equal(ResultadoFiltroProduto.NaoEncontrado, resultado);
+            var resultado = await _flow.FiltrarProdutoAsync("29285");
+
+            Assert.Equal(ResultadoFiltroProduto.Encontrado, resultado);
         }
     }
 }

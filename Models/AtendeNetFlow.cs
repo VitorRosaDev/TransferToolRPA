@@ -347,9 +347,11 @@ namespace TransferToolRPA.Models
 
         /// <summary>
         /// Aguarda a grade refletir o produto filtrado. Retorna "Encontrado" quando a
-        /// primeira linha já corresponde ao código; "NaoEncontrado" imediatamente quando a
-        /// consulta sinaliza "sem resultados" (mensagem "Registro não encontrado" ou rodapé
-        /// "Total 0"); ou "NaoEncontrado" se o tempo máximo expirar sem confirmação.
+        /// primeira linha já corresponde ao código; "NaoEncontrado" quando a grade permanece
+        /// vazia por um tempo estável (a consulta não trouxe lotes) ou quando o tempo máximo
+        /// expira sem confirmação. A janela de estabilidade evita que a mensagem residual
+        /// "Registro não encontrado" de uma consulta anterior seja confundida com o resultado
+        /// da consulta atual (que ainda está carregando).
         /// </summary>
         private async Task<ResultadoFiltroProduto> AguardarGradeResultadosAsync(string codigo)
         {
@@ -377,16 +379,12 @@ namespace TransferToolRPA.Models
                 }
                 else
                 {
-                    // Retorno rapido: a propria consulta sinaliza que nao ha registros.
-                    bool semResultados =
-                        await page.Locator(AtendeNetSelectors.GradeLotes.MensagemNaoEncontrado).CountAsync() > 0;
-
-                    if (semResultados)
-                    {
-                        return ResultadoFiltroProduto.NaoEncontrado;
-                    }
-
-                    // Fallback: grade vazia e estavel sem sinal detectavel.
+                    // Grade vazia AGORA pode ser transitorio: logo apos clicar em
+                    // "Consultar", o grid ainda exibe o estado da consulta anterior
+                    // (inclusive o "Registro nao encontrado" residual de um codigo que
+                    // de fato nao existia). So se declara "nao encontrado" apos a grade
+                    // permanecer vazia por um tempo estavel — o suficiente para o AJAX da
+                    // consulta atual concluir e re-renderizar.
                     vazioDesde ??= DateTime.Now;
                     if (DateTime.Now - vazioDesde >= TimeSpan.FromMilliseconds(_janelaGradeVaziaMs))
                     {
