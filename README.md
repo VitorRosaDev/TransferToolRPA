@@ -4,7 +4,7 @@ O **TransferTool RPA** é uma aplicação desktop desenvolvida em C# / .NET 8 co
 
 Esta ferramenta atua de forma integrada com o **TransferTool Mobile**, importando payloads JSON de cargas geradas offline e automatizando a digitação manual de operador humano no ERP da prefeitura, mitigando erros logísticos e agilizando a distribuição.
 
-> 📊 **Status:** primeira transferência **E2E concluída** (2026-09-24). O estado detalhado da sessão, os gargalos abertos e as lições aprendidas ficam em [`PROJECT_REPORT.md`](PROJECT_REPORT.md) e [`Atlas.md`](Atlas.md).
+> 📊 **Status:** primeira transferência **E2E concluída** (2026-09-24) e tratamento de eventualidades operacionais implementado (múltiplos códigos por item, item não localizado, lote sem validade e quantidade parcial).
 
 ---
 
@@ -62,7 +62,7 @@ O robô assume a execução a partir do **Passo 4** da rotina operacional de alm
 3. **Passo 5 (Depósitos):** preenche Origem e Destino (`aside input.campo-numerico`), dispara `Tab` e aguarda a validação AJAX do ERP.
 4. **Passo 6 (Produto):** digita o código no campo de filtro da janela ativa (`[id^="janela_"].janela_ipm_ativa aside td:nth-of-type(3) > input`) e pressiona `Enter`.
 5. **Passo 7 (Configuração de Colunas):** garante a coluna "Validade" visível (engrenagem `div.area_total_janela > div span:nth-of-type(5) > input` → marca `ins.jstree-checkbox` → aplicar/fechar).
-6. **Passo 8 (Seleção de Lote & Inclusão):** identifica as células da grade pelo atributo estável **`nomecoluna`** (`prdcodigo`, `estdatavalidade`, `estquantidade`) e usa o `LoteSelector` para escolher o melhor lote (1º validade mais curta; 2º menor quantidade; completamento automático se a quantidade pedida exceder o lote). Preenche `input[name="quantidade_transferir"]` e clica em `button[name="botao_incluir"]`.
+6. **Passo 8 (Seleção de Lote & Inclusão):** identifica as células da grade por **`nomecoluna`** (`prdcodigo`, `estdatavalidade`, `estquantidade`). Para itens com múltiplos códigos, consulta cada código e **agrega os lotes numa lista única**, ordenando por **validade × quantidade** (lotes sem validade por último) com **completamento entre lotes/códigos**. Seleciona o lote por **matching de validade + quantidade**, preenche `input[name="quantidade_transferir"]` e clica em `button[name="botao_incluir"]`. Itens sem lotes são pulados (log vermelho); estoque insuficiente gera log âmbar (parcial).
 7. **Passo 9 (Iteração):** repete os passos 6–8 para todos os itens da carga.
 8. **Passo 10 (Confirmação):** clica em "Confirmar" (`button.estrutura_botao_colorido`) e aceita o modal opcional de simulação.
 
@@ -104,24 +104,29 @@ dotnet publish TransferToolRPA.csproj -c Release -r win-x64 --self-contained tru
 
 > ⚠️ **Segurança:** com a porta 9222 aberta, qualquer processo local pode controlar o browser. Não navegue em sites sensíveis com esse Chrome aberto.
 > **Diagnóstico de erro:** screenshot + HTML + frames são gravados em `%LOCALAPPDATA%\TransferToolRPA\Diagnostico`.
+> **Log persistido:** cada execução é gravada em `%LOCALAPPDATA%\TransferToolRPA\Logs\TransferToolRPA-YYYY-MM-DD.log` (rastreabilidade; inclui os diagnósticos do Playwright que não aparecem no console).
 
 ---
 
 ## 🧪 Suíte de Testes Automatizados (xUnit)
 
-A aplicação conta com **78 casos de teste** (59 `[Fact]` + 19 casos `[Theory]/InlineData`), distribuídos em 8 arquivos:
+A aplicação conta com **92 casos de teste** (xUnit), distribuídos em 10 arquivos:
 
 | Arquivo | Casos | Foco |
 |---------|------:|------|
-| `PayloadServiceTests.cs` | 25 | Parsing e validação do payload |
+| `PayloadServiceTests.cs` | 31 | Parsing, validação e normalização multi-código |
 | `PayloadSecurityTests.cs` | 8 | Injeção, Path Traversal e limites |
-| `AtendeNetFlowErrorScenariosTests.cs` | 11 | Grade vazia, timeouts e fluxos de erro |
-| `AutomationEngineTests.cs` | 7 | Orquestração, progresso e cancelamento |
-| `AutomationIntegrationTests.cs` | 9 | Hostname do WebSocket CDP e seletores |
-| `LoteSelectorTests.cs` | 7 | Ordenação de lotes sob timezones variados |
-| `AtendeNetFlowLogicTests.cs` | 6 | Regras de seleção de lote |
+| `LoteSelectorTests.cs` | 17 | Ordenação/planejamento de lotes (validade × quantidade, multi-código, sem validade, parcial) |
+| `AtendeNetFlowLogicTests.cs` | 7 | Leitura de lotes e seleção de lote (grade mockada) |
+| `AtendeNetFlowErrorScenariosTests.cs` | 5 | Grade vazia e lote inexistente |
+| `AutomationEngineTests.cs` | 7 | Orquestração multi-código, skip, parcial, progresso, cancelamento |
+| `AutomationIntegrationTests.cs` | 7 | Hostname do WebSocket CDP e seletores |
 | `PlaywrightPathResolverTests.cs` | 5 | Resolução de driver/browsers (env vars, idempotência) |
-| **Total** | **78** | |
+| `ObservableLoggerServiceTests.cs` | 2 | Persistência de log em arquivo |
+| `CargaQueueServiceTests.cs` | 3 | Fila: wrappers, status e mover para o fim |
+| **Total** | **92** | |
+
+> Os testes do `AutomationEngine` chamam `ExecutarFluxoAsync()` (orquestração) com o fluxo mockado — **não** abrem navegador.
 
 Para executar a partir da pasta raiz:
 ```bash
@@ -132,6 +137,4 @@ dotnet test
 
 ## 📚 Documentação e Referências
 
-* [`PROJECT_REPORT.md`](PROJECT_REPORT.md): relatório de estado do projeto, histórico de blockers resolvidos, gargalos abertos, próximos passos e catálogo de skills.
-* [`Atlas.md`](Atlas.md): ledger de lições aprendidas (drift) mantido pelo skill `atlas-ledger`.
-* `Artefatos/` (**local, não versionado**): gravações de fluxo executadas no ERP e payloads de exemplo exportados pelo app mobile.
+* [`CHANGELOG.md`](CHANGELOG.md): histórico de mudanças por versão.
