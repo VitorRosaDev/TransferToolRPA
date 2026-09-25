@@ -33,3 +33,6 @@ Artefatos/
 ## Dumps de diagnóstico do RPA (temporários — não versionar)
 diagnostico_*.png
 dom_dump_*.html
+
+## Documentação pessoal de desenvolvimento (vive no vault, não no repo)
+Atlas.md
