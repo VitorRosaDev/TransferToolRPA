@@ -15,6 +15,7 @@
       impedindo a cópia do node.exe para o publish. Ver PROJECT_REPORT.md para detalhes.
     -->
     <UseAppHost>true</UseAppHost>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

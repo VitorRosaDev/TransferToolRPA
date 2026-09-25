@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -34,14 +34,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
       - name: Run unit tests
-        run: dotnet test ${{ env.TEST_PROJECT }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
-
-      - name: Upload code coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./**/coverage.cobertura.xml
-          fail_ci_if_error: false
+        run: dotnet test ${{ env.TEST_PROJECT }} --configuration Release --no-build --verbosity normal
 
   code-quality:
     name: Code Quality
@@ -50,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -75,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
