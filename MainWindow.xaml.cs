@@ -149,7 +149,7 @@ namespace TransferToolRPA
                     }
                     else
                     {
-                        MessageBox.Show("Por favor, selecione apenas arquivos com a extensão .json", 
+                        MessageBox.Show("Por favor, selecione apenas arquivos com a extensão .json",
                                         "Formato Inválido", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                 }

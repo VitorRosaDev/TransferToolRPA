@@ -28,7 +28,7 @@ namespace TransferToolRPA.Models
             try
             {
                 string profilePath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "TransferToolRPA", "ChromeProfile");
 
                 Directory.CreateDirectory(profilePath);

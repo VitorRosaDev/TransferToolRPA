@@ -8,8 +8,8 @@ namespace TransferToolRPA.Services
     public interface IAutomationService
     {
         Task ExecutarAutomacaoAsync(
-            TransferenciaPayload payload, 
-            IProgress<ProgressoAutomacao> progressReporter, 
+            TransferenciaPayload payload,
+            IProgress<ProgressoAutomacao> progressReporter,
             CancellationToken cancellationToken
         );
 

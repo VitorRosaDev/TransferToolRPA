@@ -32,7 +32,7 @@ namespace TransferToolRPA.Commands
         public void Execute(object? parameter)
         {
             _loggerService.Log("Iniciando navegador com perfil de depuração habilitado...");
-            
+
             bool sucesso = NavegadorHelper.IniciarNavegadorComDepuracao();
             if (sucesso)
             {
