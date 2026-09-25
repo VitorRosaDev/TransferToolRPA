@@ -22,3 +22,14 @@ Desktop.ini
 
 ## Log de Execução local
 *.log
+
+## Artefatos de publish e binários do Playwright (grandes, não versionar)
+publish/
+.playwright/
+
+## Artefatos locais (gravações de fluxo do ERP, payloads de exemplo — não versionar)
+Artefatos/
+
+## Dumps de diagnóstico do RPA (temporários — não versionar)
+diagnostico_*.png
+dom_dump_*.html
