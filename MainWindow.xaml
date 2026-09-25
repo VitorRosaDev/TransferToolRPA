@@ -181,8 +181,8 @@
                     Cursor="Hand"
                     MouseDown="Border_MouseDown">
                 
-                <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid AllowDrop="True" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel AllowDrop="True" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="📥" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8"/>
                         <TextBlock Text="Arraste o arquivo JSON da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center"/>
                         <TextBlock Text="Ou clique para navegar no computador" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" HorizontalAlignment="Center"/>

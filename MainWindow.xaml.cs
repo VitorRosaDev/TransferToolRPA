@@ -1,23 +1,36 @@
 using System;
 using System.IO;
+using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
 using TransferToolRPA.ViewModels;
+using TransferToolRPA.Services;
 
 namespace TransferToolRPA
 {
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _viewModel;
+        private readonly ILoggerService _loggerService;
 
         public MainWindow(MainViewModel viewModel)
         {
             InitializeComponent();
             _viewModel = viewModel;
+            _loggerService = viewModel.GetType().GetProperty("LoggerService")?.GetValue(viewModel) as ILoggerService
+                ?? viewModel.GetType().GetField("_loggerService", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(viewModel) as ILoggerService;
             DataContext = _viewModel;
+
+            bool isAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent())
+                .IsInRole(WindowsBuiltInRole.Administrator);
+            _loggerService?.Log($"[DEBUG] Rodando como Admin: {isAdmin}");
+            if (isAdmin)
+            {
+                _loggerService?.Log("[AVISO] Drag & drop pode não funcionar quando executado como Administrador.");
+            }
         }
 
         // Realiza o Scroll Automático do Console de Logs ao adicionar novas mensagens

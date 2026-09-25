@@ -1,13 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace TransferToolRPA.Models
 {
-    public record PayloadItem(
-        string codigo, 
-        double quantidade, 
-        string? validade
+    public record PayloadItemEntrada(
+        string[] codigos,
+        double quantidade
     );
 
     public record TransferenciaPayload(
@@ -15,14 +16,16 @@ namespace TransferToolRPA.Models
         string data_geracao,
         string codigo_origem,
         string codigo_destino,
-        PayloadItem[] itens
+        PayloadItemEntrada[] itens
+    );
+
+    public record ItemTransferenciaInterno(
+        string Codigo,
+        double Quantidade
     );
 
     public static class PayloadValidator
     {
-        /// <summary>
-        /// Realiza a validação lógica e de segurança do payload JSON com base na estrutura do Mobile.
-        /// </summary>
         public static void Validar(TransferenciaPayload payload)
         {
             if (payload == null)
@@ -31,13 +34,11 @@ namespace TransferToolRPA.Models
             if (payload.id_app <= 0)
                 throw new ArgumentException("O ID da transferência (id_app) é inválido.");
 
-            // Validação de Tamanho e Segurança contra Path Traversal/Injection no código_origem
             if (string.IsNullOrWhiteSpace(payload.codigo_origem))
                 throw new ArgumentException("O código do depósito de origem (codigo_origem) é obrigatório.");
             if (payload.codigo_origem.Length > 50 || ContemCaracteresSuspeitos(payload.codigo_origem))
                 throw new ArgumentException("O código do depósito de origem (codigo_origem) excede o tamanho permitido ou contém caracteres inválidos.");
 
-            // Validação de Tamanho e Segurança contra Path Traversal/Injection no código_destino
             if (string.IsNullOrWhiteSpace(payload.codigo_destino))
                 throw new ArgumentException("O código da escola de destino (codigo_destino) é obrigatório.");
             if (payload.codigo_destino.Length > 50 || ContemCaracteresSuspeitos(payload.codigo_destino))
@@ -48,22 +49,45 @@ namespace TransferToolRPA.Models
 
             foreach (var item in payload.itens)
             {
-                if (string.IsNullOrWhiteSpace(item.codigo))
+                if (item.codigos == null || item.codigos.Length == 0)
                     throw new ArgumentException("Existe um item com código de produto ausente ou inválido.");
-                if (item.codigo.Length > 50 || ContemCaracteresSuspeitos(item.codigo))
-                    throw new ArgumentException($"O código do produto '{item.codigo}' excede o tamanho permitido ou contém caracteres inválidos.");
+
+                if (item.codigos.Length > 1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AVISO] Item com múltiplos códigos detectado (legacy): {string.Join(", ", item.codigos)}. Será usado apenas o primeiro.");
+                }
+
+                string codigo = item.codigos[0];
+                if (string.IsNullOrWhiteSpace(codigo))
+                    throw new ArgumentException("Existe um item com código de produto vazio.");
+                if (codigo.Length > 50 || ContemCaracteresSuspeitos(codigo))
+                    throw new ArgumentException($"O código do produto '{codigo}' excede o tamanho permitido ou contém caracteres inválidos.");
 
                 if (item.quantidade <= 0)
-                    throw new ArgumentException($"A quantidade do produto {item.codigo} deve ser maior que zero (encontrado: {item.quantidade}).");
+                    throw new ArgumentException($"A quantidade do produto {codigo} deve ser maior que zero (encontrado: {item.quantidade}).");
                 if (item.quantidade > 1000000)
-                    throw new ArgumentException($"A quantidade do produto {item.codigo} excede o limite máximo de segurança de 1.000.000 unidades.");
+                    throw new ArgumentException($"A quantidade do produto {codigo} excede o limite máximo de segurança de 1.000.000 unidades.");
+            }
+        }
+
+        public static void ValidarTodas(IEnumerable<TransferenciaPayload> payloads)
+        {
+            if (payloads == null)
+                throw new ArgumentNullException(nameof(payloads), "A lista de payloads não pode ser nula.");
+
+            var payloadArray = payloads.ToArray();
+            if (payloadArray.Length == 0)
+                throw new ArgumentException("Nenhuma transferência encontrada no arquivo.");
+
+            foreach (var payload in payloadArray)
+            {
+                Validar(payload);
             }
         }
 
         private static bool ContemCaracteresSuspeitos(string input)
         {
             if (string.IsNullOrEmpty(input)) return false;
-            // Caracteres comuns em injeção de comandos, path traversal, ou SQL/HTML injection
             string[] suspeitos = { "..", "/", "\\", ";", "'", "\"", "<", ">", "\n", "\r" };
             foreach (var s in suspeitos)
             {
@@ -72,10 +96,7 @@ namespace TransferToolRPA.Models
             return false;
         }
 
-        /// <summary>
-        /// Carrega e valida o payload a partir de um arquivo JSON local.
-        /// </summary>
-        public static TransferenciaPayload CarregarDeArquivo(string filePath)
+        public static TransferenciaPayload[] CarregarDeArquivo(string filePath)
         {
             if (!File.Exists(filePath))
                 throw new FileNotFoundException("Arquivo de carga JSON não encontrado.", filePath);
@@ -86,12 +107,23 @@ namespace TransferToolRPA.Models
                 PropertyNameCaseInsensitive = true
             };
 
-            var payload = JsonSerializer.Deserialize<TransferenciaPayload>(jsonContent, options);
-            if (payload == null)
-                throw new InvalidDataException("Falha ao desserializar o arquivo JSON de transferência.");
+            var payloads = JsonSerializer.Deserialize<TransferenciaPayload[]>(jsonContent, options);
+            if (payloads == null || payloads.Length == 0)
+                throw new InvalidDataException("Falha ao desserializar o arquivo JSON de transferência ou arquivo vazio.");
 
-            Validar(payload);
-            return payload;
+            ValidarTodas(payloads);
+            return payloads;
+        }
+
+        public static IEnumerable<ItemTransferenciaInterno> ExpandirItens(TransferenciaPayload payload)
+        {
+            if (payload?.itens == null) yield break;
+
+            foreach (var item in payload.itens)
+            {
+                string codigo = item.codigos[0];
+                yield return new ItemTransferenciaInterno(codigo, item.quantidade);
+            }
         }
     }
 }

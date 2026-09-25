@@ -37,6 +37,8 @@ namespace TransferToolRPA.Commands
             if (sucesso)
             {
                 _loggerService.LogSuccess("Navegador iniciado com sucesso na porta 9222.");
+                _loggerService.Log("✅ Chrome aberto na tela de login do Atende.Net.");
+                _loggerService.Log("👉 Faça login manualmente e, após acessar o sistema, clique em 'Iniciar RPA'.");
             }
             else
             {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using TransferToolRPA.Models;
 
 namespace TransferToolRPA.Services
@@ -18,6 +19,14 @@ namespace TransferToolRPA.Services
         public void Enqueue(TransferenciaPayload payload)
         {
             Queue.Add(payload);
+        }
+
+        public void EnqueueRange(IEnumerable<TransferenciaPayload> payloads)
+        {
+            foreach (var payload in payloads)
+            {
+                Queue.Add(payload);
+            }
         }
 
         public bool Dequeue(out TransferenciaPayload? payload)

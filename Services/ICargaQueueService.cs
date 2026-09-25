@@ -8,6 +8,7 @@ namespace TransferToolRPA.Services
     {
         ObservableCollection<TransferenciaPayload> Queue { get; }
         void Enqueue(TransferenciaPayload payload);
+        void EnqueueRange(IEnumerable<TransferenciaPayload> payloads);
         bool Dequeue(out TransferenciaPayload? payload);
         void Remove(TransferenciaPayload payload);
         void Clear();

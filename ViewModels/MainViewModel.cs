@@ -21,7 +21,7 @@ namespace TransferToolRPA.ViewModels
         private string _progressoMensagem = "Aguardando importação de arquivo JSON...";
         private string _logOutput = string.Empty;
         private bool _isExecuting = false;
-        
+
         public ObservableCollection<TransferenciaPayload> CargasImportadas => _cargaQueueService.Queue;
         public TransferenciaPayload? Payload => CargasImportadas.FirstOrDefault();
         public CancellationTokenSource? Cts { get; set; }
@@ -55,9 +55,9 @@ namespace TransferToolRPA.ViewModels
         public bool IsExecuting
         {
             get => _isExecuting;
-            set 
-            { 
-                _isExecuting = value; 
+            set
+            {
+                _isExecuting = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -78,7 +78,6 @@ namespace TransferToolRPA.ViewModels
             _loggerService = loggerService;
             _cargaQueueService = cargaQueueService;
 
-            // Inscreve a propriedade LogOutput para reagir ao serviço de Logs
             _loggerService.OnLogAdded += line =>
             {
                 if (string.IsNullOrEmpty(line))
@@ -91,10 +90,10 @@ namespace TransferToolRPA.ViewModels
                 }
             };
 
-            // Escuta a fila de cargas do serviço de forma desacoplada
             _cargaQueueService.OnQueueChanged += () =>
             {
                 OnPropertyChanged(nameof(Payload));
+                OnPropertyChanged(nameof(CargasImportadas));
                 CommandManager.InvalidateRequerySuggested();
             };
 

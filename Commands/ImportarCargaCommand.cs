@@ -43,13 +43,13 @@ namespace TransferToolRPA.Commands
                 _viewModel.JsonFilePath = filePath;
 
                 _loggerService.Log($"Carregando payload JSON: {Path.GetFileName(filePath)}...");
-                var payload = _payloadService.CarregarEValidar(filePath);
+                var payloads = _payloadService.CarregarEValidar(filePath);
 
-                _cargaQueueService.Enqueue(payload);
+                _cargaQueueService.EnqueueRange(payloads);
 
                 _viewModel.ProgressoPercent = 0;
-                _viewModel.ProgressoMensagem = "Carga carregada com sucesso! Pronto para iniciar.";
-                _loggerService.LogSuccess($"Carga importada com sucesso. ID da Carga: {payload.id_app}. Total de itens: {payload.itens.Length}.");
+                _viewModel.ProgressoMensagem = $"{payloads.Length} transferência(s) carregada(s) com sucesso! Pronto para iniciar.";
+                _loggerService.LogSuccess($"{payloads.Length} transferência(s) importada(s). Total de itens: {payloads.Sum(p => p.itens.Length)}.");
             }
             catch (Exception ex)
             {
