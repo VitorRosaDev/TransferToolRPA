@@ -6,9 +6,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon />
+    <ApplicationIcon>icon.ico</ApplicationIcon>
     <RootNamespace>TransferToolRPA</RootNamespace>
     <AssemblyName>TransferToolRPA</AssemblyName>
+    <!--
+      Publicação: self-contained SEM single-file.
+      O single-file quebrava a resolução do driver do Playwright (Assembly.Location vazio),
+      impedindo a cópia do node.exe para o publish. Ver PROJECT_REPORT.md para detalhes.
+    -->
+    <UseAppHost>true</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,5 +26,16 @@
     <EmbeddedResource Remove="TransferToolRPA.Tests\**" />
     <None Remove="TransferToolRPA.Tests\**" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include=".playwright\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CopyPlaywrightBrowsers" AfterTargets="Publish">
+    <ItemGroup>
+      <PlaywrightFiles Include="$(MSBuildProjectDirectory)\.playwright\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PlaywrightFiles)" DestinationFolder="$(PublishDir)\.playwright\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -1,0 +1,96 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION_FILE: 'TransferToolRPA.sln'
+  TEST_PROJECT: 'TransferToolRPA.Tests/TransferToolRPA.Tests.csproj'
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+
+      - name: Run unit tests
+        run: dotnet test ${{ env.TEST_PROJECT }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Upload code coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./**/coverage.cobertura.xml
+          fail_ci_if_error: false
+
+  code-quality:
+    name: Code Quality
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+
+      - name: Install analyzers
+        run: dotnet tool install --global dotnet-format
+
+      - name: Check code formatting
+        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
+
+      - name: Run static analysis
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release /p:TreatWarningsAsErrors=true
+
+  validate-solution:
+    name: Validate Solution
+    runs-on: windows-latest
+    timeout-minutes: 10
+    needs: [build-and-test, code-quality]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+
+      - name: Verify solution loads
+        run: dotnet sln ${{ env.SOLUTION_FILE }} list
+
+      - name: Check for unused packages
+        run: |
+          dotnet list ${{ env.TEST_PROJECT }} package --outdated
+          dotnet list TransferToolRPA/TransferToolRPA.csproj package --outdated
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
