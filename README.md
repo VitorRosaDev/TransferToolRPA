@@ -97,8 +97,9 @@ dotnet publish TransferToolRPA.csproj -c Release -r win-x64 --self-contained tru
 ### 3. Conexão CDP (porta 9222)
 1. Abra o Chrome com depuração remota **ou** use o botão **🌐 Abrir Chrome** do próprio app:
    ```powershell
-   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:LOCALAPPDATA\TransferToolRPA\ChromeProfile" "https://alvorada.atende.net/atende.php?rot=1&aca=1#!/sistema/28"
+   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:LOCALAPPDATA\TransferToolRPA\ChromeProfile" "https://SEU-SERVIDOR.atende.net/atende.php?rot=1&aca=1#!/sistema/28"
    ```
+   > Substitua `SEU-SERVIDOR` pela URL do Atende.Net da sua instalação.
 2. Faça o **login humano** e navegue até a tela de consulta de transferências.
 3. Abra o `TransferToolRPA.exe`, arraste o JSON exportado pelo **TransferTool Mobile** para a área de drag-and-drop e clique em **Iniciar RPA** — as cargas da fila são processadas sequencialmente.
 
@@ -139,3 +140,9 @@ dotnet test
 ## 📚 Documentação e Referências
 
 * [`CHANGELOG.md`](CHANGELOG.md): histórico de mudanças por versão.
+
+---
+
+## 📄 Licença
+
+Distribuído sob a licença [GNU Lesser General Public License v3.0](LICENSE) (LGPLv3).
