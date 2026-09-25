@@ -19,12 +19,14 @@ namespace TransferToolRPA.ViewModels
         private string _jsonFilePath = string.Empty;
         private double _progressoPercent = 0;
         private string _progressoMensagem = "Aguardando importação de arquivo JSON...";
-        private string _logOutput = string.Empty;
         private bool _isExecuting = false;
 
-        public ObservableCollection<TransferenciaPayload> CargasImportadas => _cargaQueueService.Queue;
-        public TransferenciaPayload? Payload => CargasImportadas.FirstOrDefault();
+        public ObservableCollection<CargaItemViewModel> CargasImportadas => _cargaQueueService.Queue;
+        public TransferenciaPayload? Payload => CargasImportadas.FirstOrDefault(c => c.Status == StatusCarga.Pendente)?.Payload;
         public CancellationTokenSource? Cts { get; set; }
+
+        /// <summary>Console de logs em tempo real, com cor por severidade (NivelLog).</summary>
+        public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -44,12 +46,6 @@ namespace TransferToolRPA.ViewModels
         {
             get => _progressoMensagem;
             set { _progressoMensagem = value; OnPropertyChanged(); }
-        }
-
-        public string LogOutput
-        {
-            get => _logOutput;
-            set { _logOutput = value; OnPropertyChanged(); }
         }
 
         public bool IsExecuting
@@ -78,17 +74,7 @@ namespace TransferToolRPA.ViewModels
             _loggerService = loggerService;
             _cargaQueueService = cargaQueueService;
 
-            _loggerService.OnLogAdded += line =>
-            {
-                if (string.IsNullOrEmpty(line))
-                {
-                    LogOutput = string.Empty;
-                }
-                else
-                {
-                    LogOutput += line;
-                }
-            };
+            _loggerService.OnLogAdded += AplicarLog;
 
             _cargaQueueService.OnQueueChanged += () =>
             {
@@ -104,6 +90,41 @@ namespace TransferToolRPA.ViewModels
             AbrirNavegadorCommand = new AbrirNavegadorCommand(this, loggerService);
 
             _loggerService.Log("Aplicativo inicializado. Pronto para receber cargas do TransferTool Mobile.");
+        }
+
+        /// <summary>
+        /// Adiciona uma linha ao console de logs, garantindo execução na thread da UI
+        /// (a automação pode reportar de threads de fundo). Um entry vazio sinaliza Clear.
+        /// </summary>
+        private void AplicarLog(LogEntry entry)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => AplicarLogNaColecao(entry));
+            }
+            else
+            {
+                AplicarLogNaColecao(entry);
+            }
+        }
+
+        private void AplicarLogNaColecao(LogEntry entry)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(entry.Texto))
+                {
+                    LogEntries.Clear();
+                    return;
+                }
+
+                LogEntries.Add(entry);
+            }
+            catch
+            {
+                // Exibição de log é não-crítica: nunca deve derrubar a aplicação.
+            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? name = null)

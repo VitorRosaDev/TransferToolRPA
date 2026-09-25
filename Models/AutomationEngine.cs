@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,13 +10,13 @@ namespace TransferToolRPA.Models
     public class AutomationEngine
     {
         private readonly TransferenciaPayload _payload;
-        private readonly IProgress<(string Mensagem, double Progresso)> _progressReporter;
+        private readonly IProgress<ProgressoAutomacao> _progressReporter;
         private readonly CancellationToken _cancellationToken;
         private readonly IAtendeNetFlow _flow;
 
         public AutomationEngine(
             TransferenciaPayload payload,
-            IProgress<(string Mensagem, double Progresso)> progressReporter,
+            IProgress<ProgressoAutomacao> progressReporter,
             CancellationToken cancellationToken,
             IAtendeNetFlow flow)
         {
@@ -113,8 +114,20 @@ namespace TransferToolRPA.Models
 
             _flow.Inicializar(page);
 
+            await ExecutarFluxoAsync();
+        }
+
+        /// <summary>
+        /// Executa o fluxo de transferência propriamente dito, assumindo que o navegador
+        /// já está conectado e o fluxo inicializado. Separado de <see cref="ExecutarAsync"/>
+        /// para permitir testes determinísticos (sem abrir/conectar um navegador).
+        /// </summary>
+        public async Task ExecutarFluxoAsync()
+        {
             try
             {
+                await _flow.FecharJanelasAbertasAsync();
+
                 await _flow.NavegarParaTransferenciaAsync();
 
                 await _flow.PreencherOrigemDestinoAsync(_payload.codigo_origem, _payload.codigo_destino);
@@ -128,31 +141,21 @@ namespace TransferToolRPA.Models
                 for (int i = 0; i < totalItens; i++)
                 {
                     var item = _payload.itens[i];
-                    string codigo = item.codigos[0];
-                    double quantidade = item.quantidade;
                     double progressoAtual = progressoBase + (i * progressoPorItem);
+                    string codigosTexto = string.Join(", ", PayloadValidator.NormalizarCodigos(item.codigos));
 
-                    Report($"Inserindo item {i + 1} de {totalItens}: {codigo} (Qtd: {quantidade})...", progressoAtual);
+                    Report($"Inserindo item {i + 1} de {totalItens}: {codigosTexto} (Qtd: {item.quantidade})...", progressoAtual);
 
                     _cancellationToken.ThrowIfCancellationRequested();
 
-                    await _flow.FiltrarProdutoAsync(codigo);
-
-                    var loteResultado = await _flow.SelecionarLotePorValidadeAsync(quantidade);
-                    double quantidadeUsada = loteResultado.QuantidadeUsada;
-
-                    await _flow.PreencherQuantidadeAsync(quantidadeUsada);
-
-                    await _flow.IncluirItemAsync();
-
-                    Report($"Item {codigo} incluído com sucesso!", progressoAtual + (progressoPorItem * 0.9));
+                    await ProcessarItemAsync(item, progressoAtual, progressoPorItem);
                 }
 
                 _cancellationToken.ThrowIfCancellationRequested();
 
                 await _flow.ConfirmarTransferenciaAsync();
 
-                Report("Processo concluído com sucesso!", 100);
+                Report("Processo concluído com sucesso!", 100, NivelLog.Sucesso);
             }
             catch (Exception ex)
             {
@@ -161,9 +164,99 @@ namespace TransferToolRPA.Models
             }
         }
 
-        private void Report(string mensagem, double progresso)
+        /// <summary>
+        /// Processa um item da carga: consulta cada código, agrega todos os lotes numa única
+        /// lista, planeja (validade x quantidade, com completamento entre lotes/códigos) e
+        /// executa as inclusões. Itens sem nenhum lote (código inexistente ou sem estoque)
+        /// são pulados com log vermelho; quantidades parciais geram log âmbar.
+        /// </summary>
+        private async Task ProcessarItemAsync(PayloadItemEntrada item, double progresso, double progressoPorItem)
         {
-            _progressReporter.Report((mensagem, Math.Clamp(progresso, 0, 100)));
+            var codigos = PayloadValidator.NormalizarCodigos(item.codigos);
+            double quantidade = item.quantidade;
+
+            // 1) Consulta cada código e agrega TODOS os lotes numa única lista.
+            //    "codigoFiltradoAtual" acompanha qual código está na grade, evitando
+            //    re-filtragens desnecessárias na etapa de inclusão (passo 4).
+            var candidatos = new List<LoteCandidato>();
+            string? codigoFiltradoAtual = null;
+            foreach (var codigo in codigos)
+            {
+                _cancellationToken.ThrowIfCancellationRequested();
+
+                var resultado = await _flow.FiltrarProdutoAsync(codigo);
+                if (resultado != ResultadoFiltroProduto.Encontrado)
+                {
+                    Report($"[AVISO] Código {codigo} sem lotes/estoque (Qtd: {quantidade}).", progresso, NivelLog.Aviso);
+                    continue;
+                }
+
+                codigoFiltradoAtual = codigo;
+
+                var lotes = await _flow.ObterLotesDisponiveisAsync(codigo);
+                foreach (var lote in lotes)
+                {
+                    candidatos.Add(new LoteCandidato(codigo, lote.Indice, lote.Validade, lote.Quantidade));
+                }
+            }
+
+            string codigosTexto = string.Join(", ", codigos);
+
+            // 2) Nenhum lote em nenhum código => Eventualidade 2 (pular + log vermelho).
+            if (candidatos.Count == 0)
+            {
+                Report($"Item NÃO adicionado — código não localizado: código(s) {codigosTexto}, quantidade {quantidade}.", progresso, NivelLog.Erro, ResultadoItemTransferencia.NaoEncontrado);
+                return;
+            }
+
+            // 3) Planeja a transferência (validade x quantidade, completando entre lotes/códigos).
+            var plano = LoteSelector.PlanejarTransferencia(candidatos, quantidade);
+
+            if (plano.Inclusoes.Count == 0)
+            {
+                Report($"Item NÃO adicionado — sem quantidade disponível: código(s) {codigosTexto}, quantidade {quantidade}.", progresso, NivelLog.Erro, ResultadoItemTransferencia.NaoEncontrado);
+                return;
+            }
+
+            // 4) Executa as inclusões, re-filtrando somente quando o código muda.
+            foreach (var inclusao in plano.Inclusoes)
+            {
+                _cancellationToken.ThrowIfCancellationRequested();
+
+                if (!string.Equals(codigoFiltradoAtual, inclusao.Lote.Codigo, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _flow.FiltrarProdutoAsync(inclusao.Lote.Codigo);
+                    codigoFiltradoAtual = inclusao.Lote.Codigo;
+                }
+
+                await _flow.SelecionarLoteAsync(
+                    new LoteGrade(inclusao.Lote.IndiceNaGrade, inclusao.Lote.Validade, inclusao.Lote.Quantidade),
+                    inclusao.Lote.Codigo);
+                await _flow.PreencherQuantidadeAsync(inclusao.Quantidade);
+                await _flow.IncluirItemAsync();
+            }
+
+            // 5) Quantidade parcial => Eventualidade 5 (log âmbar e segue o fluxo).
+            if (plano.QuantidadeFaltante > 0.001)
+            {
+                Report(
+                    $"Item com quantidade PARCIAL: código(s) {codigosTexto} — transferido {plano.QuantidadeTransferida} de {quantidade} (faltaram {plano.QuantidadeFaltante}).",
+                    progresso + (progressoPorItem * 0.9),
+                    NivelLog.Aviso,
+                    ResultadoItemTransferencia.Parcial);
+            }
+            else
+            {
+                Report(
+                    $"Item {codigosTexto} incluído com sucesso ({plano.QuantidadeTransferida} un.).",
+                    progresso + (progressoPorItem * 0.9),
+                    NivelLog.Sucesso);
+            }
+        }
+
+        private void Report(string mensagem, double progresso, NivelLog nivel = NivelLog.Info, ResultadoItemTransferencia resultado = ResultadoItemTransferencia.Nenhum)
+        {
+            _progressReporter.Report(new ProgressoAutomacao(mensagem, Math.Clamp(progresso, 0, 100), nivel, resultado));
         }
 
         private async Task<string?> ObterWebSocketUrlAsync(string cdpUrl)

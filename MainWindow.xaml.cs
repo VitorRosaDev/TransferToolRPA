@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.IO;
 using System.Security.Principal;
 using System.Windows;
@@ -24,6 +25,11 @@ namespace TransferToolRPA
                 ?? viewModel.GetType().GetField("_loggerService", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(viewModel) as ILoggerService;
             DataContext = _viewModel;
 
+            PosicionarNaLateralDireita();
+
+            // Realiza o Scroll Automático do Console de Logs ao adicionar novas mensagens
+            _viewModel.LogEntries.CollectionChanged += OnLogEntriesChanged;
+
             bool isAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent())
                 .IsInRole(WindowsBuiltInRole.Administrator);
             _loggerService?.Log($"[DEBUG] Rodando como Admin: {isAdmin}");
@@ -33,12 +39,67 @@ namespace TransferToolRPA
             }
         }
 
-        // Realiza o Scroll Automático do Console de Logs ao adicionar novas mensagens
-        private void TxtLog_TextChanged(object sender, TextChangedEventArgs e)
+        /// <summary>
+        /// Abre a janela colada na borda direita da tela, com altura total e largura de
+        /// 50% da area de trabalho. Calculado em runtime (SystemParameters.WorkArea) para
+        /// se adaptar a qualquer resolucao/escala de monitor.
+        /// </summary>
+        private void PosicionarNaLateralDireita()
         {
-            if (sender is TextBox textBox)
+            try
             {
-                textBox.ScrollToEnd();
+                var area = SystemParameters.WorkArea;
+
+                Width = area.Width * 0.5;
+                Height = area.Height;
+                Left = area.Right - Width;
+                Top = area.Top;
+                // Logs colapsados no inicio: ~10% da altura da tela (cabecalho + ~1 linha).
+                MainGrid.RowDefinitions[3].Height = new GridLength(area.Height * 0.11);
+            }
+            catch
+            {
+                // Se nao for possivel calcular, mantem as dimensoes padrao do XAML.
+            }
+        }
+
+        // Realiza o Scroll Automático do Console de Logs ao adicionar novas mensagens
+        private void OnLogEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action != NotifyCollectionChangedAction.Add)
+                return;
+
+            Dispatcher.BeginInvoke(new Action(RolarLogParaOFim),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private void RolarLogParaOFim()
+        {
+            try
+            {
+                if (LstLog.Items.Count > 0)
+                {
+                    LstLog.ScrollIntoView(LstLog.Items[LstLog.Items.Count - 1]);
+                }
+            }
+            catch
+            {
+                // Scroll automático é cosmético; nunca deve derrubar a aplicação.
+            }
+        }
+
+        // Copia todo o conteúdo do console de logs para a área de transferência
+        private void CopiarLog_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string log = _loggerService?.FullLog ?? string.Empty;
+                Clipboard.SetText(log);
+                _loggerService?.LogSuccess("Log copiado para a área de transferência.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Falha ao copiar o log: " + ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

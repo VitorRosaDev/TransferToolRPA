@@ -9,8 +9,14 @@ namespace TransferToolRPA.Services
     {
         Task ExecutarAutomacaoAsync(
             TransferenciaPayload payload, 
-            IProgress<(string Mensagem, double Progresso)> progressReporter, 
+            IProgress<ProgressoAutomacao> progressReporter, 
             CancellationToken cancellationToken
         );
+
+        /// <summary>
+        /// Encerra o navegador Chrome/Edge conectado via CDP (porta 9222). Se o
+        /// encerramento via CDP nao funcionar, encerra o processo que usa a porta 9222.
+        /// </summary>
+        Task FecharNavegadorAsync();
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
@@ -8,182 +9,170 @@ using Xunit;
 
 namespace TransferToolRPA.Tests
 {
+    /// <summary>
+    /// Testes de orquestração do <see cref="AutomationEngine"/> sem depender de navegador:
+    /// usa o fluxo mockado (IAtendeNetFlow) e chama ExecutarFluxoAsync diretamente.
+    /// </summary>
     public class AutomationEngineTests
     {
-        private readonly IProgress<(string Mensagem, double Progresso)> _progress;
+        private readonly IProgress<ProgressoAutomacao> _progress;
         private readonly CancellationTokenSource _cts;
         private readonly IAtendeNetFlow _mockFlow;
-        private readonly TransferenciaPayload _payload;
 
         public AutomationEngineTests()
         {
-            _progress = Substitute.For<IProgress<(string Mensagem, double Progresso)>>();
+            _progress = Substitute.For<IProgress<ProgressoAutomacao>>();
             _cts = new CancellationTokenSource();
             _mockFlow = Substitute.For<IAtendeNetFlow>();
 
-            _payload = new TransferenciaPayload(1, "2026-06-03", "10", "70", new[]
-            {
-                new PayloadItemEntrada(new[] { "2201" }, 10),
-                new PayloadItemEntrada(new[] { "2218" }, 5)
-            });
-        }
-
-        [Fact]
-        public async Task ExecutarAsync_DeveChamarMetodosNaOrdemCorreta()
-        {
+            _mockFlow.FecharJanelasAbertasAsync().Returns(Task.CompletedTask);
             _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.CompletedTask);
             _mockFlow.PreencherOrigemDestinoAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.CompletedTask);
             _mockFlow.ConfigurarColunasValidadeAsync().Returns(Task.CompletedTask);
-            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.SelecionarLotePorValidadeAsync(Arg.Any<double>()).Returns((0, 10.0));
+            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.FromResult(ResultadoFiltroProduto.Encontrado));
+            _mockFlow.ObterLotesDisponiveisAsync(Arg.Any<string>()).Returns(Task.FromResult<IReadOnlyList<LoteGrade>>(new List<LoteGrade> { new(0, null, 100) }));
+            _mockFlow.SelecionarLoteAsync(Arg.Any<LoteGrade>(), Arg.Any<string>()).Returns(Task.CompletedTask);
             _mockFlow.PreencherQuantidadeAsync(Arg.Any<double>()).Returns(Task.CompletedTask);
             _mockFlow.IncluirItemAsync().Returns(Task.CompletedTask);
             _mockFlow.ConfirmarTransferenciaAsync().Returns(Task.CompletedTask);
             _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
+        }
 
-            var engine = new AutomationEngine(_payload, _progress, _cts.Token, _mockFlow);
-            await engine.ExecutarAsync();
+        private AutomationEngine CriarEngine(TransferenciaPayload payload)
+            => new AutomationEngine(payload, _progress, _cts.Token, _mockFlow);
+
+        private static DateTime D(int ano, int mes, int dia) => new DateTime(ano, mes, dia);
+
+        private static TransferenciaPayload Payload(params PayloadItemEntrada[] itens)
+            => new TransferenciaPayload(1, "2026-06-03", "10", "70", itens);
+
+        private List<string> CodigosFiltrados() => _mockFlow.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IAtendeNetFlow.FiltrarProdutoAsync))
+            .Select(c => (string)c.GetArguments()[0]!)
+            .ToList();
+
+        private List<LoteGrade> LotesSelecionados() => _mockFlow.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IAtendeNetFlow.SelecionarLoteAsync))
+            .Select(c => (LoteGrade)c.GetArguments()[0]!)
+            .ToList();
+
+        private List<double> QuantidadesPreenchidas() => _mockFlow.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IAtendeNetFlow.PreencherQuantidadeAsync))
+            .Select(c => (double)c.GetArguments()[0]!)
+            .ToList();
+
+        [Fact]
+        public async Task ExecutarFluxoAsync_DeveChamarMetodosNaOrdemCorreta()
+        {
+            await CriarEngine(Payload(
+                new PayloadItemEntrada(new[] { "2201" }, 10),
+                new PayloadItemEntrada(new[] { "2218" }, 5))).ExecutarFluxoAsync();
 
             await _mockFlow.Received(1).NavegarParaTransferenciaAsync();
             await _mockFlow.Received(1).PreencherOrigemDestinoAsync("10", "70");
             await _mockFlow.Received(1).ConfigurarColunasValidadeAsync();
-            
             await _mockFlow.Received(2).FiltrarProdutoAsync(Arg.Any<string>());
-            await _mockFlow.Received(2).SelecionarLotePorValidadeAsync(Arg.Any<double>());
+            await _mockFlow.Received(2).SelecionarLoteAsync(Arg.Any<LoteGrade>(), Arg.Any<string>());
             await _mockFlow.Received(2).PreencherQuantidadeAsync(Arg.Any<double>());
             await _mockFlow.Received(2).IncluirItemAsync();
-            
             await _mockFlow.Received(1).ConfirmarTransferenciaAsync();
         }
 
         [Fact]
-        public async Task ExecutarAsync_DeveReportarProgresso()
+        public async Task ExecutarFluxoAsync_MultiplosCodigos_AgregaEOrdenaGlobalmente()
         {
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.PreencherOrigemDestinoAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.ConfigurarColunasValidadeAsync().Returns(Task.CompletedTask);
-            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.SelecionarLotePorValidadeAsync(Arg.Any<double>()).Returns((0, 10.0));
-            _mockFlow.PreencherQuantidadeAsync(Arg.Any<double>()).Returns(Task.CompletedTask);
-            _mockFlow.IncluirItemAsync().Returns(Task.CompletedTask);
-            _mockFlow.ConfirmarTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
+            // Item com quantidade 10 e códigos "8875, 12494".
+            // 8875: 20/10/2027 qty12 e 10/10/2027 qty2; 12494: 15/10/2027 qty2.
+            // Ordem esperada: 8875(10/10) 2 -> 12494(15/10) 2 -> 8875(20/10) 6.
+            _mockFlow.ObterLotesDisponiveisAsync(Arg.Any<string>()).Returns(
+                Task.FromResult<IReadOnlyList<LoteGrade>>(new List<LoteGrade>
+                {
+                    new(0, D(2027, 10, 20), 12),
+                    new(0, D(2027, 10, 10), 2)
+                }),
+                Task.FromResult<IReadOnlyList<LoteGrade>>(new List<LoteGrade>
+                {
+                    new(0, D(2027, 10, 15), 2)
+                }));
 
-            var progressReports = new List<(string Mensagem, double Progresso)>();
-            var progress = new Progress<(string Mensagem, double Progresso)>(r => progressReports.Add(r));
+            await CriarEngine(Payload(new PayloadItemEntrada(new[] { "8875, 12494" }, 10))).ExecutarFluxoAsync();
 
-            var engine = new AutomationEngine(_payload, progress, _cts.Token, _mockFlow);
-            await engine.ExecutarAsync();
+            Assert.Equal(new[] { "8875", "12494", "8875", "12494", "8875" }, CodigosFiltrados());
 
-            Assert.True(progressReports.Count > 0);
-            Assert.Contains(progressReports, r => r.Mensagem.Contains("Conectando"));
-            Assert.Contains(progressReports, r => r.Mensagem.Contains("Aba localizada"));
-            Assert.Contains(progressReports, r => r.Mensagem.Contains("Inserindo item 1"));
-            Assert.Contains(progressReports, r => r.Mensagem.Contains("Inserindo item 2"));
-            Assert.Contains(progressReports, r => r.Mensagem.Contains("Processo concluído"));
-        }
+            Assert.Equal(
+                new DateTime?[] { D(2027, 10, 10), D(2027, 10, 15), D(2027, 10, 20) },
+                LotesSelecionados().Select(l => l.Validade).ToArray());
 
-        [Fact]
-        public async Task ExecutarAsync_QuandoCancellationTokenCancelado_DeveLancarOperationCanceledException()
-        {
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.Delay(1000));
+            Assert.Equal(new[] { 2.0, 2.0, 6.0 }, QuantidadesPreenchidas().ToArray());
 
-            var cts = new CancellationTokenSource();
-            cts.Cancel();
-
-            var engine = new AutomationEngine(_payload, _progress, cts.Token, _mockFlow);
-
-            await Assert.ThrowsAsync<OperationCanceledException>(() => engine.ExecutarAsync());
-        }
-
-        [Fact]
-        public async Task ExecutarAsync_QuandoFlowLancaExcecao_DeveCapturarDiagnosticoERelancar()
-        {
-            var excecaoEsperada = new InvalidOperationException("Erro simulado");
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.FromException(excecaoEsperada));
-            _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-
-            var engine = new AutomationEngine(_payload, _progress, _cts.Token, _mockFlow);
-
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => engine.ExecutarAsync());
-            Assert.Equal("Erro simulado", ex.Message);
-            
-            await _mockFlow.Received(1).CapturarDiagnosticoAsync(Arg.Is<string>(s => s.Contains("Erro simulado")));
-        }
-
-        [Fact]
-        public async Task ExecutarAsync_ComMultiplosItens_DeveProcessarTodosSequencialmente()
-        {
-            var payloadMultiplos = new TransferenciaPayload(1, "2026-06-03", "10", "70", new[]
-            {
-                new PayloadItemEntrada(new[] { "2201" }, 10),
-                new PayloadItemEntrada(new[] { "2218" }, 5),
-                new PayloadItemEntrada(new[] { "38355" }, 2)
-            });
-
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.PreencherOrigemDestinoAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.ConfigurarColunasValidadeAsync().Returns(Task.CompletedTask);
-            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.SelecionarLotePorValidadeAsync(Arg.Any<double>()).Returns((0, 10.0));
-            _mockFlow.PreencherQuantidadeAsync(Arg.Any<double>()).Returns(Task.CompletedTask);
-            _mockFlow.IncluirItemAsync().Returns(Task.CompletedTask);
-            _mockFlow.ConfirmarTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-
-            var engine = new AutomationEngine(payloadMultiplos, _progress, _cts.Token, _mockFlow);
-            await engine.ExecutarAsync();
-
-            await _mockFlow.Received(3).FiltrarProdutoAsync(Arg.Any<string>());
-            await _mockFlow.Received(3).SelecionarLotePorValidadeAsync(Arg.Any<double>());
-            await _mockFlow.Received(3).PreencherQuantidadeAsync(Arg.Any<double>());
             await _mockFlow.Received(3).IncluirItemAsync();
+            await _mockFlow.Received(1).ConfirmarTransferenciaAsync();
         }
 
         [Fact]
-        public async Task ExecutarAsync_DevePassarCodigosCorretosParaFiltrarProduto()
+        public async Task ExecutarFluxoAsync_CodigoNaoEncontrado_PulaItemEIncluiOsDemais()
         {
-            var payload = new TransferenciaPayload(1, "2026-06-03", "10", "70", new[]
-            {
-                new PayloadItemEntrada(new[] { "2201" }, 10),
-                new PayloadItemEntrada(new[] { "2218" }, 5)
-            });
+            var payload = Payload(
+                new PayloadItemEntrada(new[] { "000000" }, 5),   // não encontrado
+                new PayloadItemEntrada(new[] { "2201" }, 3));    // encontrado
 
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.PreencherOrigemDestinoAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.ConfigurarColunasValidadeAsync().Returns(Task.CompletedTask);
-            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.SelecionarLotePorValidadeAsync(Arg.Any<double>()).Returns((0, 10.0));
-            _mockFlow.PreencherQuantidadeAsync(Arg.Any<double>()).Returns(Task.CompletedTask);
-            _mockFlow.IncluirItemAsync().Returns(Task.CompletedTask);
-            _mockFlow.ConfirmarTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
+            _mockFlow.FiltrarProdutoAsync("000000").Returns(Task.FromResult(ResultadoFiltroProduto.NaoEncontrado));
+            _mockFlow.FiltrarProdutoAsync("2201").Returns(Task.FromResult(ResultadoFiltroProduto.Encontrado));
 
-            var engine = new AutomationEngine(payload, _progress, _cts.Token, _mockFlow);
-            await engine.ExecutarAsync();
+            await CriarEngine(payload).ExecutarFluxoAsync();
 
-            await _mockFlow.Received(1).FiltrarProdutoAsync("2201");
-            await _mockFlow.Received(1).FiltrarProdutoAsync("2218");
+            // O item inexistente não gera inclusão; o segundo item é incluído normalmente.
+            await _mockFlow.Received(1).IncluirItemAsync();
+            await _mockFlow.Received(1).ConfirmarTransferenciaAsync();
+
+            // Item pulado deve gerar log VERMELHO (NivelLog.Erro).
+            _progress.Received().Report(Arg.Is<ProgressoAutomacao>(p => p.Nivel == NivelLog.Erro && p.Resultado == ResultadoItemTransferencia.NaoEncontrado));
         }
 
         [Fact]
-        public async Task ExecutarAsync_DevePassarQuantidadesCorretasParaSelecionarLote()
+        public async Task ExecutarFluxoAsync_EstoqueInsuficiente_LogaParcialEMantemFluxo()
         {
-            _mockFlow.NavegarParaTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.PreencherOrigemDestinoAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.ConfigurarColunasValidadeAsync().Returns(Task.CompletedTask);
-            _mockFlow.FiltrarProdutoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-            _mockFlow.SelecionarLotePorValidadeAsync(Arg.Any<double>()).Returns((0, 10.0));
-            _mockFlow.PreencherQuantidadeAsync(Arg.Any<double>()).Returns(Task.CompletedTask);
-            _mockFlow.IncluirItemAsync().Returns(Task.CompletedTask);
-            _mockFlow.ConfirmarTransferenciaAsync().Returns(Task.CompletedTask);
-            _mockFlow.CapturarDiagnosticoAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
+            // Pede 5, mas só existem 2 + 2 lotes disponíveis.
+            _mockFlow.ObterLotesDisponiveisAsync(Arg.Any<string>()).Returns(
+                Task.FromResult<IReadOnlyList<LoteGrade>>(new List<LoteGrade>
+                {
+                    new(0, D(2027, 6, 15), 2),
+                    new(0, D(2027, 6, 16), 2)
+                }));
 
-            var engine = new AutomationEngine(_payload, _progress, _cts.Token, _mockFlow);
-            await engine.ExecutarAsync();
+            await CriarEngine(Payload(new PayloadItemEntrada(new[] { "2201" }, 5))).ExecutarFluxoAsync();
 
-            await _mockFlow.Received(1).SelecionarLotePorValidadeAsync(10);
-            await _mockFlow.Received(1).SelecionarLotePorValidadeAsync(5);
+            await _mockFlow.Received(2).IncluirItemAsync();
+            await _mockFlow.Received(1).ConfirmarTransferenciaAsync();
+            Assert.Equal(new[] { 2.0, 2.0 }, QuantidadesPreenchidas().ToArray());
+
+            // Quantidade parcial deve gerar log ÂMBAR (NivelLog.Aviso).
+            _progress.Received().Report(Arg.Is<ProgressoAutomacao>(p => p.Nivel == NivelLog.Aviso && p.Resultado == ResultadoItemTransferencia.Parcial));
+        }
+
+        [Fact]
+        public async Task ExecutarFluxoAsync_DeveReportarProgressoFinal()
+        {
+            await CriarEngine(Payload(new PayloadItemEntrada(new[] { "2201" }, 10))).ExecutarFluxoAsync();
+
+            _progress.Received().Report(Arg.Is<ProgressoAutomacao>(p => p.Percentual == 100 && p.Nivel == NivelLog.Sucesso));
+        }
+
+        [Fact]
+        public async Task ExecutarFluxoAsync_Cancelado_LancaOperationCanceledException()
+        {
+            _cts.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => CriarEngine(Payload(new PayloadItemEntrada(new[] { "2201" }, 10))).ExecutarFluxoAsync());
+        }
+
+        [Fact]
+        public async Task ExecutarFluxoAsync_DeveFecharJanelasAbertasAntesDeNavegar()
+        {
+            await CriarEngine(Payload(new PayloadItemEntrada(new[] { "2201" }, 10))).ExecutarFluxoAsync();
+
+            await _mockFlow.Received(1).FecharJanelasAbertasAsync();
         }
     }
 }

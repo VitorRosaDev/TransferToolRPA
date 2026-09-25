@@ -18,10 +18,16 @@ namespace TransferToolRPA
             var playwrightPaths = PlaywrightPathResolver.Configure();
 
             // Inicialização dos serviços (Injeção de Dependência Manual)
-            ILoggerService loggerService = new ObservableLoggerService();
+            var loggerConcreto = new ObservableLoggerService();
+            ILoggerService loggerService = loggerConcreto;
             IPayloadService payloadService = new PayloadService();
             IAutomationService automationService = new PlaywrightAutomationService();
             ICargaQueueService cargaQueueService = new CargaQueueService();
+
+            if (!string.IsNullOrEmpty(loggerConcreto.CaminhoArquivoLog))
+            {
+                loggerService.Log($"Log persistido em: {loggerConcreto.CaminhoArquivoLog}");
+            }
 
             ReportarDiagnosticoPlaywright(loggerService, playwrightPaths);
 

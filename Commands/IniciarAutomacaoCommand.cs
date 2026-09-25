@@ -1,7 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
+using TransferToolRPA.Models;
 using TransferToolRPA.Services;
 using TransferToolRPA.ViewModels;
 
@@ -28,6 +30,67 @@ namespace TransferToolRPA.Commands
             _cargaQueueService = cargaQueueService;
         }
 
+        /// <summary>
+        /// Encaminha a mensagem de progresso ao logger com o nível adequado, para que o
+        /// console pinte a linha com a cor correspondente (Erro=vermelho, Aviso=âmbar).
+        /// </summary>
+        private void RegistrarNoLog(ProgressoAutomacao report)
+        {
+            switch (report.Nivel)
+            {
+                case NivelLog.Sucesso:
+                    _loggerService.LogSuccess(report.Mensagem);
+                    break;
+                case NivelLog.Aviso:
+                    _loggerService.LogWarning(report.Mensagem);
+                    break;
+                case NivelLog.Erro:
+                    _loggerService.LogError(report.Mensagem);
+                    break;
+                default:
+                    _loggerService.Log(report.Mensagem);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Ao final do fluxo, pergunta se o operador deseja fechar o Chrome da sessao
+        /// (porta 9222). Sim encerra o navegador; Nao mantem a janela e exibe um lembrete.
+        /// </summary>
+        private async Task PerguntarSobreFechamentoDoNavegadorAsync()
+        {
+            var resposta = MessageBox.Show(
+                "TRANSFERÊNCIA FINALIZADA!\n\n" +
+                "É recomendável fechar a janela do Chrome utilizada nesta sessão.\n\n" +
+                "Fechar janela?",
+                "TransferTool RPA",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+
+            if (resposta == MessageBoxResult.Yes)
+            {
+                _loggerService.Log("Fechando a janela do Chrome (porta 9222)...");
+
+                try
+                {
+                    await _automationService.FecharNavegadorAsync();
+                    _loggerService.LogSuccess("Janela do Chrome encerrada.");
+                }
+                catch (Exception ex)
+                {
+                    _loggerService.LogWarning($"Não foi possível fechar o Chrome automaticamente: {ex.Message}");
+                }
+            }
+            else
+            {
+                MessageBox.Show(
+                    "Não se esqueça de fechar a janela do Chrome utilizada nesta sessão.",
+                    "TransferTool RPA",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
         public bool CanExecute(object? parameter)
         {
             return _viewModel.Payload != null && !_viewModel.IsExecuting;
@@ -41,36 +104,69 @@ namespace TransferToolRPA.Commands
             _loggerService.Log("Iniciando automação do Atende.Net...");
             _viewModel.Cts = new CancellationTokenSource();
 
-            var progress = new Progress<(string Mensagem, double Progresso)>(report =>
-            {
-                _viewModel.ProgressoMensagem = report.Mensagem;
-                _viewModel.ProgressoPercent = report.Progresso;
-                _loggerService.Log(report.Mensagem);
-            });
-
             try
             {
                 var token = _viewModel.Cts.Token;
+                int pendentes = _cargaQueueService.Queue.Count;
 
-                while (_cargaQueueService.Queue.Count > 0)
+                while (pendentes > 0)
                 {
                     token.ThrowIfCancellationRequested();
 
-                    var payload = _cargaQueueService.Queue[0];
-                    _loggerService.Log($"[FILA] Iniciando automação da carga para o destino: {payload.codigo_destino} (Cargas restantes: {_cargaQueueService.Queue.Count})...");
+                    var item = _cargaQueueService.Queue[0];
+                    string destino = item.Payload.codigo_destino;
+                    _loggerService.Log($"[FILA] Iniciando automação da carga para o destino: {destino} (Cargas restantes: {pendentes})...");
 
-                    await Task.Run(async () => await _automationService.ExecutarAutomacaoAsync(payload, progress, token), token);
+                    bool teveNaoEncontrado = false;
+                    bool teveParcial = false;
 
-                    _loggerService.LogSuccess($"[FILA] Carga para o destino {payload.codigo_destino} concluída com sucesso.");
-
-                    System.Windows.Application.Current.Dispatcher.Invoke(() => 
+                    var progress = new Progress<ProgressoAutomacao>(report =>
                     {
-                        _cargaQueueService.Dequeue(out _);
+                        _viewModel.ProgressoMensagem = report.Mensagem;
+                        _viewModel.ProgressoPercent = report.Percentual;
+
+                        if (report.Resultado == ResultadoItemTransferencia.NaoEncontrado)
+                        {
+                            teveNaoEncontrado = true;
+                        }
+                        else if (report.Resultado == ResultadoItemTransferencia.Parcial)
+                        {
+                            teveParcial = true;
+                        }
+
+                        RegistrarNoLog(report);
                     });
+
+                    try
+                    {
+                        await Task.Run(async () => await _automationService.ExecutarAutomacaoAsync(item.Payload, progress, token), token);
+
+                        StatusCarga status = teveNaoEncontrado
+                            ? StatusCarga.ComNaoEncontrado
+                            : teveParcial ? StatusCarga.Parcial : StatusCarga.Concluida;
+
+                        item.Status = status;
+                        _loggerService.LogSuccess($"[FILA] Carga para o destino {destino} concluída.");
+
+                        System.Windows.Application.Current.Dispatcher.Invoke(() => _cargaQueueService.MoverParaOFim(item));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        item.Status = StatusCarga.ComNaoEncontrado;
+                        throw;
+                    }
+
+                    pendentes--;
                 }
 
                 _viewModel.ProgressoMensagem = "Fila de processamento concluída.";
                 _viewModel.ProgressoPercent = 100;
+
+                await PerguntarSobreFechamentoDoNavegadorAsync();
             }
             catch (OperationCanceledException)
             {

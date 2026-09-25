@@ -164,10 +164,66 @@ namespace TransferToolRPA.Tests
             var expandidos = PayloadValidator.ExpandirItens(payload).ToArray();
 
             Assert.Equal(2, expandidos.Length);
-            Assert.Equal("25510", expandidos[0].Codigo);
+            Assert.Equal(new[] { "25510" }, expandidos[0].Codigos);
             Assert.Equal(8, expandidos[0].Quantidade);
-            Assert.Equal("2201", expandidos[1].Codigo);
+            Assert.Equal(new[] { "2201" }, expandidos[1].Codigos);
             Assert.Equal(120, expandidos[1].Quantidade);
+        }
+
+        [Fact]
+        public void NormalizarCodigos_CodigoUnico_RetornaListaComUmCodigo()
+        {
+            var resultado = PayloadValidator.NormalizarCodigos(new[] { "2201" });
+
+            Assert.Equal(new[] { "2201" }, resultado);
+        }
+
+        [Fact]
+        public void NormalizarCodigos_MultiplosCodigosNaMesmaString_ExpandePorVirgula()
+        {
+            // Formato legado do TransferToolMobile: ["8875, 12494"]
+            var resultado = PayloadValidator.NormalizarCodigos(new[] { "8875, 12494" });
+
+            Assert.Equal(new[] { "8875", "12494" }, resultado);
+        }
+
+        [Fact]
+        public void NormalizarCodigos_ArrayComVariosElementos_Concatena()
+        {
+            // Formato futuro: ["8875", "12494"]
+            var resultado = PayloadValidator.NormalizarCodigos(new[] { "8875", "12494" });
+
+            Assert.Equal(new[] { "8875", "12494" }, resultado);
+        }
+
+        [Fact]
+        public void NormalizarCodigos_ComEspacosEItensVazios_IgnoraVazios()
+        {
+            var resultado = PayloadValidator.NormalizarCodigos(new[] { "  8875 , , 12494 ", "" });
+
+            Assert.Equal(new[] { "8875", "12494" }, resultado);
+        }
+
+        [Fact]
+        public void NormalizarCodigos_NuloOuVazio_RetornaVazio()
+        {
+            Assert.Empty(PayloadValidator.NormalizarCodigos(null));
+            Assert.Empty(PayloadValidator.NormalizarCodigos(Array.Empty<string>()));
+        }
+
+        [Fact]
+        public void ExpandirItens_MultiplosCodigos_RetornaCodigosExpandidos()
+        {
+            var payload = new TransferenciaPayload(1, "2026-06-03", "10", "70", new[]
+            {
+                new PayloadItemEntrada(new[] { "8875, 12494" }, 24)
+            });
+
+            var expandidos = PayloadValidator.ExpandirItens(payload).ToArray();
+
+            Assert.Single(expandidos);
+            Assert.Equal(new[] { "8875", "12494" }, expandidos[0].Codigos);
+            Assert.Equal(24, expandidos[0].Quantidade);
         }
 
         [Fact]

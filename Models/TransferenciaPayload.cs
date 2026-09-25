@@ -20,7 +20,7 @@ namespace TransferToolRPA.Models
     );
 
     public record ItemTransferenciaInterno(
-        string Codigo,
+        string[] Codigos,
         double Quantidade
     );
 
@@ -52,21 +52,25 @@ namespace TransferToolRPA.Models
                 if (item.codigos == null || item.codigos.Length == 0)
                     throw new ArgumentException("Existe um item com código de produto ausente ou inválido.");
 
-                if (item.codigos.Length > 1)
+                // Cada elemento pode conter um código único ou vários códigos separados
+                // por vírgula (formato legado do TransferToolMobile: ["8875, 12494"]).
+                var codigos = NormalizarCodigos(item.codigos);
+
+                if (codigos.Length == 0)
+                    throw new ArgumentException("Existe um item com código de produto vazio.");
+
+                foreach (var codigo in codigos)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[AVISO] Item com múltiplos códigos detectado (legacy): {string.Join(", ", item.codigos)}. Será usado apenas o primeiro.");
+                    if (codigo.Length > 50 || ContemCaracteresSuspeitos(codigo))
+                        throw new ArgumentException($"O código do produto '{codigo}' excede o tamanho permitido ou contém caracteres inválidos.");
                 }
 
-                string codigo = item.codigos[0];
-                if (string.IsNullOrWhiteSpace(codigo))
-                    throw new ArgumentException("Existe um item com código de produto vazio.");
-                if (codigo.Length > 50 || ContemCaracteresSuspeitos(codigo))
-                    throw new ArgumentException($"O código do produto '{codigo}' excede o tamanho permitido ou contém caracteres inválidos.");
+                string codigosTexto = string.Join(", ", codigos);
 
                 if (item.quantidade <= 0)
-                    throw new ArgumentException($"A quantidade do produto {codigo} deve ser maior que zero (encontrado: {item.quantidade}).");
+                    throw new ArgumentException($"A quantidade do produto {codigosTexto} deve ser maior que zero (encontrado: {item.quantidade}).");
                 if (item.quantidade > 1000000)
-                    throw new ArgumentException($"A quantidade do produto {codigo} excede o limite máximo de segurança de 1.000.000 unidades.");
+                    throw new ArgumentException($"A quantidade do produto {codigosTexto} excede o limite máximo de segurança de 1.000.000 unidades.");
             }
         }
 
@@ -96,6 +100,34 @@ namespace TransferToolRPA.Models
             return false;
         }
 
+        /// <summary>
+        /// Normaliza a lista bruta de códigos de um item em códigos individuais.
+        /// O TransferToolMobile pode enviar vários códigos dentro de uma única string
+        /// separada por vírgula (ex.: ["8875, 12494"]) — aqui isso é sempre expandido
+        /// para ["8875", "12494"], deixando o código robusto a ambos os formatos.
+        /// </summary>
+        public static string[] NormalizarCodigos(string[]? codigos)
+        {
+            if (codigos == null || codigos.Length == 0)
+                return Array.Empty<string>();
+
+            var resultado = new List<string>();
+
+            foreach (var bruto in codigos)
+            {
+                if (string.IsNullOrWhiteSpace(bruto)) continue;
+
+                foreach (var parte in bruto.Split(','))
+                {
+                    string limpo = parte.Trim();
+                    if (!string.IsNullOrEmpty(limpo))
+                        resultado.Add(limpo);
+                }
+            }
+
+            return resultado.ToArray();
+        }
+
         public static TransferenciaPayload[] CarregarDeArquivo(string filePath)
         {
             if (!File.Exists(filePath))
@@ -121,8 +153,7 @@ namespace TransferToolRPA.Models
 
             foreach (var item in payload.itens)
             {
-                string codigo = item.codigos[0];
-                yield return new ItemTransferenciaInterno(codigo, item.quantidade);
+                yield return new ItemTransferenciaInterno(NormalizarCodigos(item.codigos), item.quantidade);
             }
         }
     }

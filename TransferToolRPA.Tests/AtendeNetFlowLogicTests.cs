@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Playwright;
@@ -10,118 +10,177 @@ using Xunit;
 
 namespace TransferToolRPA.Tests
 {
+    /// <summary>
+    /// Testes de comportamento positivo do fluxo (leitura de lotes e seleção de lote)
+    /// usando a página mockada — sem navegador real.
+    /// </summary>
     public class AtendeNetFlowLogicTests
     {
+        private readonly IProgress<ProgressoAutomacao> _progress;
+        private readonly IPage _page;
+        private readonly ILocator _gradeLocator;
         private readonly AtendeNetFlow _flow;
-        private readonly IProgress<(string Mensagem, double Progresso)> _progress;
-        private readonly CancellationToken _cancellationToken;
 
         public AtendeNetFlowLogicTests()
         {
-            _progress = Substitute.For<IProgress<(string Mensagem, double Progresso)>>();
-            _cancellationToken = CancellationToken.None;
-            _flow = new AtendeNetFlow(_progress, _cancellationToken);
+            _progress = Substitute.For<IProgress<ProgressoAutomacao>>();
+            _page = Substitute.For<IPage>();
+            _gradeLocator = Substitute.For<ILocator>();
+
+            _flow = new AtendeNetFlow(
+                _progress,
+                CancellationToken.None,
+                dumpDir: Path.Combine(Path.GetTempPath(), "TransferToolRPA.Tests"),
+                timeoutGradeMs: 800,
+                janelaGradeVaziaMs: 100);
+            _flow.Inicializar(_page);
         }
 
         [Fact]
-        public void SelecionarMelhorLoteComCompletamento_QuantidadeSuficienteNoPrimeiro_DeveRetornarPrimeiro()
+        public async Task FiltrarProdutoAsync_PrimeiraLinhaComCodigo_RetornaEncontrado()
         {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 100, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 200, null)
-            };
+            var linha1 = Substitute.For<ILocator>();
 
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50);
+            _page.Locator(AtendeNetSelectors.FiltroProduto.InputFiltro).Returns(_gradeLocator);
+            _gradeLocator.FillAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha1 }));
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
 
-            Assert.Equal(0, resultado.IndiceLote);
-            Assert.Equal(50, resultado.QuantidadeUsada);
+            var resultado = await _flow.FiltrarProdutoAsync("2201");
+
+            Assert.Equal(ResultadoFiltroProduto.Encontrado, resultado);
         }
 
         [Fact]
-        public void SelecionarMelhorLoteComCompletamento_QuantidadeInsuficienteNoPrimeiro_DeveUsarQuantidadeDisponivel()
+        public async Task ObterLotesDisponiveisAsync_LoteComValidade_LerValidadeEQuantidade()
         {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 30, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 100, null)
-            };
+            var linha1 = Substitute.For<ILocator>();
 
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50);
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha1 }));
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns("15/06/2027");
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("1.100,00000");
 
-            Assert.Equal(0, resultado.IndiceLote);
-            Assert.Equal(30, resultado.QuantidadeUsada);
+            var lotes = await _flow.ObterLotesDisponiveisAsync("2201");
+
+            Assert.Single(lotes);
+            Assert.Equal(new DateTime(2027, 6, 15), lotes[0].Validade);
+            Assert.Equal(1100, lotes[0].Quantidade);
         }
 
         [Fact]
-        public void SelecionarMelhorLoteComCompletamento_QuantidadeExataNoPrimeiro_DeveRetornarTotal()
+        public async Task ObterLotesDisponiveisAsync_LoteSemValidade_IncluiComValidadeNula()
         {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 50, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 100, null)
-            };
+            var linha1 = Substitute.For<ILocator>();
 
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50);
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha1 }));
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns(string.Empty);
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("10,00000");
 
-            Assert.Equal(0, resultado.IndiceLote);
-            Assert.Equal(50, resultado.QuantidadeUsada);
+            var lotes = await _flow.ObterLotesDisponiveisAsync("2201");
+
+            Assert.Single(lotes);
+            Assert.Null(lotes[0].Validade);
+            Assert.Equal(10, lotes[0].Quantidade);
         }
 
         [Fact]
-        public void SelecionarMelhorLoteComCompletamento_MultiplosLotesMesmaValidade_DeveEscolherMenorQuantidade()
+        public async Task SelecionarLoteAsync_LoteExistente_SelecionaSemErro()
         {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 100, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 6, 15), 50, null),
-                new AtendeNetFlowTestHelper.LoteInfo(2, new DateTime(2027, 6, 15), 75, null)
-            };
+            var linha1 = Substitute.For<ILocator>();
+            var campoQtd = Substitute.For<ILocator>();
 
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 40);
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha1 }));
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns("15/06/2027");
+            linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("50,00000");
 
-            Assert.Equal(1, resultado.IndiceLote);
-            Assert.Equal(40, resultado.QuantidadeUsada);
+            _page.Locator(AtendeNetSelectors.Quantidade.CampoQuantidadeDisponivel).Returns(campoQtd);
+            campoQtd.CountAsync().Returns(1);
+            campoQtd.InputValueAsync().Returns("50,00000");
+
+            await _flow.SelecionarLoteAsync(new LoteGrade(0, new DateTime(2027, 6, 15), 50), "2201");
+
+            await linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).Received(1)
+                .ClickAsync(Arg.Any<LocatorClickOptions>());
         }
 
         [Fact]
-        public void SelecionarMelhorLoteComCompletamento_ListaVazia_DeveLancarExcecao()
+        public async Task SelecionarLoteAsync_DoisLotesComMesmaValidadeEQuantidade_UsaIndiceParaDesambiguar()
         {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>();
+            var linha0 = Substitute.For<ILocator>();
+            var linha1 = Substitute.For<ILocator>();
+            var campoQtd = Substitute.For<ILocator>();
 
-            Assert.Throws<InvalidOperationException>(() => AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50));
-        }
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha0, linha1 }));
 
-        [Fact]
-        public void SelecionarMelhorLoteComCompletamento_TodosLotesSemQuantidade_DeveLancarExcecao()
-        {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
+            foreach (var linha in new[] { linha0, linha1 })
             {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 0, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 0, null)
-            };
-
-            Assert.Throws<InvalidOperationException>(() => AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50));
-        }
-    }
-
-    public static class AtendeNetFlowTestHelper
-    {
-        public static (int IndiceLote, double QuantidadeUsada) SelecionarMelhorLoteComCompletamento(List<LoteInfo> lotes, double quantidadeNecessaria)
-        {
-            var lotesOrdenados = lotes.OrderBy(l => l.Validade).ThenBy(l => l.Quantidade).ToList();
-            var lotesValidos = lotesOrdenados.Where(l => l.Quantidade > 0.001).ToList();
-            if (lotesValidos.Count == 0)
-            {
-                throw new InvalidOperationException("Nenhum lote com quantidade disponível encontrado.");
+                linha.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
+                linha.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns("15/06/2027");
+                linha.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("5,00000");
             }
 
-            var melhorLote = lotesValidos[0];
-            double quantidadeUsada = Math.Min(melhorLote.Quantidade, quantidadeNecessaria);
+            _page.Locator(AtendeNetSelectors.Quantidade.CampoQuantidadeDisponivel).Returns(campoQtd);
+            campoQtd.CountAsync().Returns(1);
+            campoQtd.InputValueAsync().Returns("5,00000");
 
-            return (melhorLote.Indice, quantidadeUsada);
+            // Pede o lote na 2ª linha (mesma validade/quantidade da 1ª).
+            await _flow.SelecionarLoteAsync(new LoteGrade(1, new DateTime(2027, 6, 15), 5), "2201");
+
+            await linha1.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).Received(1)
+                .ClickAsync(Arg.Any<LocatorClickOptions>());
+            await linha0.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).DidNotReceive()
+                .ClickAsync(Arg.Any<LocatorClickOptions>());
         }
 
-        public record LoteInfo(int Indice, DateTime Validade, double Quantidade, ILocator Linha);
+        [Fact]
+        public async Task FecharJanelasAbertasAsync_DeveFecharTodasAsJanelasAbertas()
+        {
+            var botoes = Substitute.For<ILocator>();
+            var botao = Substitute.For<ILocator>();
+
+            // A contagem cai 3 -> 2 -> 1 -> 0 conforme cada janela e fechada.
+            var contagens = new Queue<int>(new[] { 3, 2, 1, 0 });
+            botoes.CountAsync().Returns(_ => Task.FromResult(contagens.Count > 0 ? contagens.Dequeue() : 0));
+            botoes.First.Returns(botao);
+
+            _page.Locator(AtendeNetSelectors.Navegacao.BotaoFecharJanela).Returns(botoes);
+
+            await _flow.FecharJanelasAbertasAsync();
+
+            await botao.Received(3).ClickAsync(Arg.Any<LocatorClickOptions>());
+        }
+
+        [Fact]
+        public async Task ObterLotesDisponiveisAsync_DescartaLinhasDeOutroCodigo()
+        {
+            var linha2201 = Substitute.For<ILocator>();
+            var linhaVelha = Substitute.For<ILocator>();
+
+            _page.Locator(AtendeNetSelectors.GradeLotes.Linhas).Returns(_gradeLocator);
+            _gradeLocator.AllAsync().Returns(Task.FromResult<IReadOnlyList<ILocator>>(new[] { linha2201, linhaVelha }));
+
+            linha2201.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("2201");
+            linha2201.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns("10/08/2027");
+            linha2201.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("156,00000");
+
+            // Linha "velha" de OUTRO produto (ex.: sobra do filtro anterior).
+            linhaVelha.Locator(AtendeNetSelectors.GradeLotes.CelulaCodigoProduto).InnerTextAsync().Returns("9999");
+            linhaVelha.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).InnerTextAsync().Returns("01/02/2027");
+            linhaVelha.Locator(AtendeNetSelectors.GradeLotes.CelulaQuantidade).InnerTextAsync().Returns("6,00000");
+
+            var lotes = await _flow.ObterLotesDisponiveisAsync("2201");
+
+            Assert.Single(lotes);
+            Assert.Equal(new DateTime(2027, 8, 10), lotes[0].Validade);
+            Assert.Equal(156, lotes[0].Quantidade);
+        }
     }
 }

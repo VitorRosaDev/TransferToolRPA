@@ -109,40 +109,10 @@ namespace TransferToolRPA.Tests
             var expandidos = PayloadValidator.ExpandirItens(payload).ToArray();
 
             Assert.Equal(2, expandidos.Length);
-            Assert.Equal("25510", expandidos[0].Codigo);
+            Assert.Equal(new[] { "25510" }, expandidos[0].Codigos);
             Assert.Equal(8, expandidos[0].Quantidade);
-            Assert.Equal("2201", expandidos[1].Codigo);
+            Assert.Equal(new[] { "2201" }, expandidos[1].Codigos);
             Assert.Equal(120, expandidos[1].Quantidade);
-        }
-
-        [Fact]
-        public void AtendeNetFlow_SelecionarMelhorLoteComCompletamento_QuantidadeSuficienteNoPrimeiro()
-        {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 100, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 200, null)
-            };
-
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50);
-
-            Assert.Equal(0, resultado.IndiceLote);
-            Assert.Equal(50, resultado.QuantidadeUsada);
-        }
-
-        [Fact]
-        public void AtendeNetFlow_SelecionarMelhorLoteComCompletamento_QuantidadeInsuficienteNoPrimeiro()
-        {
-            var lotes = new List<AtendeNetFlowTestHelper.LoteInfo>
-            {
-                new AtendeNetFlowTestHelper.LoteInfo(0, new DateTime(2027, 6, 15), 30, null),
-                new AtendeNetFlowTestHelper.LoteInfo(1, new DateTime(2027, 12, 31), 100, null)
-            };
-
-            var resultado = AtendeNetFlowTestHelper.SelecionarMelhorLoteComCompletamento(lotes, 50);
-
-            Assert.Equal(0, resultado.IndiceLote);
-            Assert.Equal(30, resultado.QuantidadeUsada);
         }
 
         [Fact]
@@ -153,7 +123,7 @@ namespace TransferToolRPA.Tests
                 new PayloadItemEntrada(new[] { "2201" }, 10)
             });
 
-            var progress = new Progress<(string Mensagem, double Progresso)>(_ => { });
+            var progress = new Progress<ProgressoAutomacao>(_ => { });
             var cts = new CancellationTokenSource();
             var mockFlow = NSubstitute.Substitute.For<IAtendeNetFlow>();
 

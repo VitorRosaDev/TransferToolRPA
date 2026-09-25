@@ -21,6 +21,9 @@ namespace TransferToolRPA.Models
             public static readonly string MenuTransferencia = "#estrutura_container_sistema li:nth-of-type(4) span";
             public static readonly string BotaoOutrasOpcoes = "aside.area_acoes > div:nth-of-type(1) span.drop_down";
             public static readonly string MenuIncluirTransferencia = "#context_menu tr:nth-of-type(1) span > span";
+            // Botao "X" (title=Fechar) de cada aba em "Janelas Abertas" — usado na etapa
+            // zero para fechar as janelas abertas antes de iniciar a transferencia.
+            public static readonly string BotaoFecharJanela = "#estrutura_janelas_abertas span.tab_close";
         }
 
         public static class OrigemDestino
@@ -47,14 +50,22 @@ namespace TransferToolRPA.Models
 
         public static class GradeLotes
         {
-            public static readonly string Linhas = "[data-subcontexto-id=\"subcontexto_dados_tela_consulta_estoque\"] tbody tr";
-            public static readonly string LinhasFallback = "table.grid-lotes tbody tr";
+            // Linhas de DADOS reais: exclui a linha de "sem resultados" (que traz um
+            // <div class="mensagem_sistema">Registro não encontrado</div> sem celulas
+            // nomecoluna). Sem isso, o grid vazio contava 1 "linha" e a deteccao de vazio
+            // nunca disparava.
+            public static readonly string Linhas = "[data-subcontexto-id=\"subcontexto_dados_tela_consulta_estoque\"] tbody tr:has(td[nomecoluna=\"prdcodigo\"])";
+            public static readonly string LinhasFallback = "table.grid-lotes tbody tr:has(td[nomecoluna=\"prdcodigo\"])";
             // Células identificadas pelo atributo "nomecoluna" (estável mesmo se as
             // colunas forem reordenadas). O seletor posicional antigo (td:nth-of-type)
             // quebrava quando a grade carregava um conjunto de dados não filtrado.
             public static readonly string CelulaCodigoProduto = "td[nomecoluna=\"prdcodigo\"]";
             public static readonly string CelulaValidade = "td[nomecoluna=\"estdatavalidade\"]";
             public static readonly string CelulaQuantidade = "td[nomecoluna=\"estquantidade\"]";
+            // Mensagem de "sem resultados" DENTRO do grid de lotes (a linha vazia traz um
+            // <div class="mensagem_sistema">Registro não encontrado</div>). Escopada ao grid
+            // para nao casar com mensagens/rodapes de outras telas ou janelas.
+            public static readonly string MensagemNaoEncontrado = "[data-subcontexto-id=\"subcontexto_dados_tela_consulta_estoque\"] div.mensagem_sistema";
         }
 
         public static class Quantidade

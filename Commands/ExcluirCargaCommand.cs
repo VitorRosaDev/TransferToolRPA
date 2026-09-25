@@ -28,12 +28,14 @@ namespace TransferToolRPA.Commands
 
         public bool CanExecute(object? parameter)
         {
-            return !_viewModel.IsExecuting && parameter is TransferenciaPayload;
+            return !_viewModel.IsExecuting && parameter is CargaItemViewModel;
         }
 
         public void Execute(object? parameter)
         {
-            if (parameter is not TransferenciaPayload payload) return;
+            if (parameter is not CargaItemViewModel item) return;
+
+            var payload = item.Payload;
 
             var result = MessageBox.Show(
                 $"Tem certeza que deseja remover a carga para a escola de destino \"{payload.codigo_destino}\"?",
@@ -43,7 +45,7 @@ namespace TransferToolRPA.Commands
 
             if (result == MessageBoxResult.Yes)
             {
-                _cargaQueueService.Remove(payload);
+                _cargaQueueService.Remove(item);
                 _loggerService.Log($"Carga para {payload.codigo_destino} excluída da fila pelo operador.");
             }
         }

@@ -11,10 +11,15 @@ namespace TransferToolRPA.Models
 {
     public class AtendeNetFlow : IAtendeNetFlow
     {
+        private const int TimeoutGradePadraoMs = 15000;
+        private const int JanelaGradeVaziaPadraoMs = 4000;
+
         private IPage? _page;
-        private readonly IProgress<(string Mensagem, double Progresso)> _progressReporter;
+        private readonly IProgress<ProgressoAutomacao> _progressReporter;
         private readonly CancellationToken _cancellationToken;
         private readonly string _dumpDir;
+        private readonly int _timeoutGradeMs;
+        private readonly int _janelaGradeVaziaMs;
 
         /// <summary>
         /// Quantidade de itens já presente no carrinho de transferência na última
@@ -23,13 +28,17 @@ namespace TransferToolRPA.Models
         private int _ultimoRowcountCarrinho;
 
         public AtendeNetFlow(
-            IProgress<(string Mensagem, double Progresso)> progressReporter,
+            IProgress<ProgressoAutomacao> progressReporter,
             CancellationToken cancellationToken,
-            string? dumpDir = null)
+            string? dumpDir = null,
+            int timeoutGradeMs = TimeoutGradePadraoMs,
+            int janelaGradeVaziaMs = JanelaGradeVaziaPadraoMs)
         {
             _progressReporter = progressReporter;
             _cancellationToken = cancellationToken;
             _dumpDir = dumpDir ?? ObterDiretorioDiagnosticoPadrao();
+            _timeoutGradeMs = timeoutGradeMs;
+            _janelaGradeVaziaMs = janelaGradeVaziaMs;
         }
 
         /// <summary>
@@ -59,6 +68,38 @@ namespace TransferToolRPA.Models
         {
             _page = page ?? throw new ArgumentNullException(nameof(page));
             _ultimoRowcountCarrinho = 0;
+
+            // Teto para QUALQUER operacao do Playwright nesta pagina: evita travar
+            // indefinidamente em grids que ainda estao carregando/re-renderizando.
+            try { _page.SetDefaultTimeout(10000); } catch { }
+        }
+
+        /// <summary>
+        /// Etapa zero: fecha todas as janelas abertas do Atende.Net (abas em
+        /// "Janelas Abertas") antes de iniciar o fluxo, para nao haver janelas
+        /// residuais interferindo (ex.: janela de consulta atras da inclusao).
+        /// </summary>
+        public async Task FecharJanelasAbertasAsync()
+        {
+            var page = GetPage();
+            await ReportAsync("Etapa zero: fechando janelas abertas...", 11);
+
+            var botoesFechar = page.Locator(AtendeNetSelectors.Navegacao.BotaoFecharJanela);
+
+            // Cada clique fecha uma janela e re-renderiza a barra de abas; re-consultamos
+            // a contagem a cada iteracao. Limite de seguranca para nao entrar em loop infinito.
+            for (int i = 0; i < 20; i++)
+            {
+                _cancellationToken.ThrowIfCancellationRequested();
+
+                int quantidade = await botoesFechar.CountAsync();
+                if (quantidade == 0) break;
+
+                await botoesFechar.First.ClickAsync();
+                await Task.Delay(300, _cancellationToken);
+            }
+
+            await ReportAsync("Janelas abertas verificadas/fechadas.", 11);
         }
 
         public async Task NavegarParaTransferenciaAsync()
@@ -122,7 +163,7 @@ namespace TransferToolRPA.Models
             }
         }
 
-        public async Task FiltrarProdutoAsync(string codigo)
+        public async Task<ResultadoFiltroProduto> FiltrarProdutoAsync(string codigo)
         {
             var page = GetPage();
             await ReportAsync($"Filtrando produto: {codigo}...", 35);
@@ -131,33 +172,59 @@ namespace TransferToolRPA.Models
             await PreencherComRetryAsync(inputFiltro, codigo);
             await ClicarComRetryAsync(() => page.ClickAsync(AtendeNetSelectors.FiltroProduto.BotaoConsultar));
 
-            await AguardarGradeResultadosAsync(codigo);
+            return await AguardarGradeResultadosAsync(codigo);
         }
 
-        public async Task<(int IndiceLote, double QuantidadeUsada)> SelecionarLotePorValidadeAsync(double quantidadeNecessaria)
+        public async Task<IReadOnlyList<LoteGrade>> ObterLotesDisponiveisAsync(string codigo)
         {
-            await ReportAsync("Selecionando lote por validade mais curta...", 45);
+            var lotes = await LerLotesAsync(codigo);
+            return lotes.Select(l => new LoteGrade(l.Indice, l.Validade, l.Quantidade)).ToList();
+        }
 
-            var lotes = await ObterLotesDisponiveisAsync();
-            if (lotes.Count == 0)
+        public async Task SelecionarLoteAsync(LoteGrade lote, string codigo)
+        {
+            await ReportAsync("Selecionando lote...", 45);
+            _cancellationToken.ThrowIfCancellationRequested();
+
+            // 1) Le a grade exigindo que as linhas sejam do codigo correto.
+            var alvo = LocalizarLote(await LerLotesAsync(codigo), lote);
+
+            // 2) Se nao achou (grade ainda em transicao/conteudo velho), re-filtra o
+            //    codigo e rele UMA vez antes de desistir.
+            if (alvo == null)
             {
-                throw new InvalidOperationException("Nenhum lote disponível encontrado na grade.");
+                await ReportAsync("[AVISO] Lote nao localizado; re-filtrando o produto e relendo a grade...", 45, NivelLog.Aviso);
+                await FiltrarProdutoAsync(codigo);
+                _cancellationToken.ThrowIfCancellationRequested();
+                alvo = LocalizarLote(await LerLotesAsync(codigo), lote);
             }
 
-            var (indiceLote, quantidadeUsada) = SelecionarMelhorLoteComCompletamento(lotes, quantidadeNecessaria);
-
-            // Usa o locator da linha já armazenado em LoteInfo, em vez de re-buscar a
-            // grade e indexar por posição — o re-fetch podia divergir do snapshot usado
-            // para montar "lotes" e causar IndexOutOfRange (bloqueio anterior).
-            var melhorLote = lotes.First(l => l.Indice == indiceLote);
-            await melhorLote.Linha.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade).ClickAsync();
+            if (alvo == null)
+            {
+                await CapturarDiagnosticoAsync($"Lote nao encontrado na grade (codigo={codigo}, validade={lote.Validade:dd/MM/yyyy}, qtd={lote.Quantidade})");
+                throw new InvalidOperationException(
+                    $"Lote nao encontrado na grade apos filtrar (codigo={codigo}, validade={lote.Validade:dd/MM/yyyy}, quantidade={lote.Quantidade}).");
+            }
 
             // O clique no lote dispara um AJAX que preenche os campos de detalhe
-            // (Quantidade Disponível, preços). Sem esperar, o preenchimento da
+            // (Quantidade Disponivel, precos). Sem esperar, o preenchimento da
             // quantidade ocorria antes desse AJAX e era sobrescrito/limpo.
+            await alvo.Linha.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade)
+                .ClickAsync(new LocatorClickOptions { Timeout = 10000 });
             await AguardarSelecaoLoteAsync();
+        }
 
-            return (indiceLote, quantidadeUsada);
+        private static LoteInfo? LocalizarLote(List<LoteInfo> lotes, LoteGrade lote)
+        {
+            // Prefere o indice lido na filtragem (distingue lotes com mesma validade e
+            // mesma quantidade) e cai para o matching por (validade + quantidade).
+            return lotes.FirstOrDefault(l =>
+                    l.Indice == lote.Indice &&
+                    l.Validade == lote.Validade &&
+                    Math.Abs(l.Quantidade - lote.Quantidade) < 0.001)
+                ?? lotes.FirstOrDefault(l =>
+                    l.Validade == lote.Validade &&
+                    Math.Abs(l.Quantidade - lote.Quantidade) < 0.001);
         }
 
         public async Task PreencherQuantidadeAsync(double quantidade)
@@ -278,33 +345,61 @@ namespace TransferToolRPA.Models
             throw new TimeoutException("Janela de inclusão de transferência não carregou dentro do tempo esperado.");
         }
 
-        private async Task AguardarGradeResultadosAsync(string codigo)
+        /// <summary>
+        /// Aguarda a grade refletir o produto filtrado. Retorna "Encontrado" quando a
+        /// primeira linha já corresponde ao código; "NaoEncontrado" imediatamente quando a
+        /// consulta sinaliza "sem resultados" (mensagem "Registro não encontrado" ou rodapé
+        /// "Total 0"); ou "NaoEncontrado" se o tempo máximo expirar sem confirmação.
+        /// </summary>
+        private async Task<ResultadoFiltroProduto> AguardarGradeResultadosAsync(string codigo)
         {
             var page = GetPage();
-            var timeout = 20000;
             var inicio = DateTime.Now;
+            DateTime? vazioDesde = null;
 
-            while (DateTime.Now - inicio < TimeSpan.FromMilliseconds(timeout))
+            while (DateTime.Now - inicio < TimeSpan.FromMilliseconds(_timeoutGradeMs))
             {
                 _cancellationToken.ThrowIfCancellationRequested();
 
                 // Só considera pronto quando a grade já refletir o produto filtrado
                 // (evita ler um conjunto não filtrado enquanto o AJAX ainda processa).
                 var linhas = await page.Locator(AtendeNetSelectors.GradeLotes.Linhas).AllAsync();
+
                 if (linhas.Count > 0)
                 {
+                    vazioDesde = null;
+
                     string primeiroCodigo = await LinhaTextoAsync(linhas[0], AtendeNetSelectors.GradeLotes.CelulaCodigoProduto);
                     if (string.Equals(primeiroCodigo, codigo, StringComparison.OrdinalIgnoreCase))
                     {
-                        return;
+                        return ResultadoFiltroProduto.Encontrado;
+                    }
+                }
+                else
+                {
+                    // Retorno rapido: a propria consulta sinaliza que nao ha registros.
+                    bool semResultados =
+                        await page.Locator(AtendeNetSelectors.GradeLotes.MensagemNaoEncontrado).CountAsync() > 0;
+
+                    if (semResultados)
+                    {
+                        return ResultadoFiltroProduto.NaoEncontrado;
+                    }
+
+                    // Fallback: grade vazia e estavel sem sinal detectavel.
+                    vazioDesde ??= DateTime.Now;
+                    if (DateTime.Now - vazioDesde >= TimeSpan.FromMilliseconds(_janelaGradeVaziaMs))
+                    {
+                        return ResultadoFiltroProduto.NaoEncontrado;
                     }
                 }
 
-                await Task.Delay(300);
+                await Task.Delay(200);
             }
 
-            await CapturarDiagnosticoAsync("Timeout aguardando grade de lotes filtrada");
-            throw new TimeoutException($"Grade de lotes não carregou o produto {codigo} após filtrar.");
+            await CapturarDiagnosticoAsync($"Timeout aguardando grade de lotes filtrada (código: {codigo})");
+            await ReportAsync($"[AVISO] A grade não confirmou o código {codigo} em {_timeoutGradeMs}ms. Item tratado como não encontrado.", 0, NivelLog.Aviso);
+            return ResultadoFiltroProduto.NaoEncontrado;
         }
 
         /// <summary>
@@ -434,7 +529,13 @@ namespace TransferToolRPA.Models
             }
         }
 
-        private async Task<List<LoteInfo>> ObterLotesDisponiveisAsync()
+        /// <summary>
+        /// Lê as linhas da grade de lotes. A validade é opcional (nula quando a coluna
+        /// vem vazia) — produtos não perecíveis passam a ser considerados, usando apenas
+        /// a quantidade como critério. Quando um código é informado (codigoFiltro),
+        /// linhas de outro produto são descartadas (protege contra grade em transição).
+        /// </summary>
+        private async Task<List<LoteInfo>> LerLotesAsync(string? codigoFiltro = null)
         {
             var page = GetPage();
             var linhas = await page.Locator(AtendeNetSelectors.GradeLotes.Linhas).AllAsync();
@@ -447,32 +548,39 @@ namespace TransferToolRPA.Models
 
             for (int rowIndex = 0; rowIndex < linhas.Count; rowIndex++)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
+
                 var linha = linhas[rowIndex];
+
+                // Quando um código é informado, descarta linhas de OUTRO produto — evita
+                // usar um lote "velho" que ainda esteja no grid durante a transição do
+                // filtro (causa do erro "Lote não encontrado").
+                if (!string.IsNullOrEmpty(codigoFiltro))
+                {
+                    string codigoLinha = await LinhaTextoAsync(linha, AtendeNetSelectors.GradeLotes.CelulaCodigoProduto);
+                    if (!string.Equals(codigoLinha, codigoFiltro, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                }
+
                 string txtValidade = await LinhaTextoAsync(linha, AtendeNetSelectors.GradeLotes.CelulaValidade);
                 string txtQuantidade = await LinhaTextoAsync(linha, AtendeNetSelectors.GradeLotes.CelulaQuantidade);
 
-                if (DateTime.TryParse(txtValidade, new CultureInfo("pt-BR"), DateTimeStyles.None, out DateTime validade))
+                DateTime? validade = null;
+                if (DateTime.TryParse(txtValidade, new CultureInfo("pt-BR"), DateTimeStyles.None, out DateTime validadeParsed))
                 {
-                    double.TryParse(txtQuantidade, NumberStyles.Number, new CultureInfo("pt-BR"), out double quantidade);
-                    lotes.Add(new LoteInfo(rowIndex, validade, quantidade, linha));
+                    validade = validadeParsed;
                 }
+
+                double.TryParse(txtQuantidade, NumberStyles.Number, new CultureInfo("pt-BR"), out double quantidade);
+
+                // Mantém a linha mesmo sem validade; linhas sem quantidade ficam com 0 e
+                // são descartadas ao montar o plano (LoteSelector).
+                lotes.Add(new LoteInfo(rowIndex, validade, quantidade, linha));
             }
 
-            return lotes.OrderBy(l => l.Validade).ThenBy(l => l.Quantidade).ToList();
-        }
-
-        private (int IndiceLote, double QuantidadeUsada) SelecionarMelhorLoteComCompletamento(List<LoteInfo> lotes, double quantidadeNecessaria)
-        {
-            var lotesValidos = lotes.Where(l => l.Quantidade > 0.001).ToList();
-            if (lotesValidos.Count == 0)
-            {
-                throw new InvalidOperationException("Nenhum lote com quantidade disponível encontrado.");
-            }
-
-            var melhorLote = lotesValidos[0]; // Já ordenado por Validade ASC, Quantidade ASC
-            double quantidadeUsada = Math.Min(melhorLote.Quantidade, quantidadeNecessaria);
-
-            return (melhorLote.Indice, quantidadeUsada);
+            return lotes;
         }
 
         private async Task ClicarComRetryAsync(Func<Task> acao, int maxTentativas = 3, int delayBaseMs = 500)
@@ -531,12 +639,12 @@ namespace TransferToolRPA.Models
             throw new InvalidOperationException($"Falha ao preencher após {maxTentativas} tentativas: {ultimaExcecao?.Message}", ultimaExcecao);
         }
 
-        private async Task ReportAsync(string mensagem, double progresso)
+        private async Task ReportAsync(string mensagem, double progresso, NivelLog nivel = NivelLog.Info)
         {
-            _progressReporter?.Report((mensagem, Math.Clamp(progresso, 0, 100)));
+            _progressReporter?.Report(new ProgressoAutomacao(mensagem, Math.Clamp(progresso, 0, 100), nivel));
             await Task.CompletedTask;
         }
 
-        private record LoteInfo(int Indice, DateTime Validade, double Quantidade, ILocator Linha);
+        private record LoteInfo(int Indice, DateTime? Validade, double Quantidade, ILocator Linha);
     }
 }

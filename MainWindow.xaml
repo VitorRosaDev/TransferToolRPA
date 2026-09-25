@@ -4,14 +4,18 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TransferToolRPA"
+        xmlns:conv="clr-namespace:TransferToolRPA.Converters"
         mc:Ignorable="d"
-        Title="TransferTool RPA - Controle de Transferências" 
+        Title="TransferTool - Automação de Transferências" 
         Height="500" Width="850"
         Background="#000000"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
         Foreground="#E7E9EA">
 
     <Window.Resources>
+        <!-- Converte o nível de log em cor de exibição (Info/Sucesso/Aviso/Erro) -->
+        <conv:NivelLogToBrushConverter x:Key="NivelLogToBrushConverter"/>
+
         <!-- Paleta de Cores Alinhada com o Tema Escuro do Mobile -->
         <SolidColorBrush x:Key="BgBrush" Color="#000000"/>
         <SolidColorBrush x:Key="CardBgBrush" Color="#16181C"/>
@@ -127,12 +131,12 @@
         </Style>
     </Window.Resources>
     
-    <Grid Margin="20">
+    <Grid Margin="20" x:Name="MainGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Row 0: Cabecalho -->
             <RowDefinition Height="*" MinHeight="195"/> <!-- Row 1: Área Central (Editável) -->
             <RowDefinition Height="Auto"/> <!-- Row 2: Divisor de Arrastar (GridSplitter) -->
-            <RowDefinition Height="*" MinHeight="100"/> <!-- Row 3: Logs de Execução -->
+            <RowDefinition Height="*" MinHeight="60"/> <!-- Row 3: Logs de Execução -->
             <RowDefinition Height="Auto"/> <!-- Row 4: Barra de Progresso (Base) -->
         </Grid.RowDefinitions>
 
@@ -145,7 +149,7 @@
 
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                 <TextBlock Text="TransferTool RPA" FontSize="26" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
-                <TextBlock Text="Automação DOM integrada com Atende.Net | Almoxarifado Central" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                <TextBlock Text="Automação integrada com Atende.Net | Almoxarifado Alvorada" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
             </StackPanel>
 
             <Button Grid.Column="1" 
@@ -184,7 +188,7 @@
                 <Grid AllowDrop="True" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel AllowDrop="True" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="📥" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                        <TextBlock Text="Arraste o arquivo JSON da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Arraste e solteo arquivo da carga aqui" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource TextBrush}" HorizontalAlignment="Center"/>
                         <TextBlock Text="Ou clique para navegar no computador" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
@@ -224,11 +228,11 @@
                                         </Grid.ColumnDefinitions>
                                         
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding codigo_destino, StringFormat='Destino: {0}'}" 
+                                            <TextBlock Text="{Binding Destino, StringFormat='Destino: {0}'}" 
                                                        FontWeight="Bold" 
                                                        FontSize="13" 
-                                                       Foreground="{StaticResource TextBrush}"/>
-                                            <TextBlock Text="{Binding itens.Length, StringFormat={}{0} itens cadastrados}" 
+                                                       Foreground="{Binding CorStatus}"/>
+                                            <TextBlock Text="{Binding QuantidadeItens, StringFormat={}{0} itens cadastrados}" 
                                                        FontSize="11" 
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        Margin="0,2,0,0"/>
@@ -256,7 +260,7 @@
                         </Grid.ColumnDefinitions>
                         
                         <Button Grid.Column="0" 
-                                Content="Iniciar RPA" 
+                                Content="TRANSFERIR" 
                                 Command="{Binding IniciarAutomacaoCommand}"
                                 Style="{StaticResource IniciarButtonStyle}"
                                 Margin="0,0,5,0"/>
@@ -288,22 +292,34 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             
-            <TextBlock Grid.Row="0" Text="LOG DE EXECUÇÃO EM TEMPO REAL" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+            <Grid Grid.Row="0" Margin="0,0,0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="LOG DE EXECUÇÃO EM TEMPO REAL" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="Copiar log" Click="CopiarLog_Click" Style="{StaticResource BaseRpaButtonStyle}" Background="#202329" Foreground="{StaticResource TextBrush}" FontSize="11" Height="28" Padding="12,3" Cursor="Hand"/>
+            </Grid>
             
             <Border Grid.Row="1" Background="#070707" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <TextBox x:Name="TxtLog"
-                         Text="{Binding LogOutput, Mode=OneWay}"
+                <ListBox x:Name="LstLog"
+                         ItemsSource="{Binding LogEntries}"
                          Background="Transparent"
-                         Foreground="#A3E4D7"
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
-                         IsReadOnly="True"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
                          Padding="10"
-                         TextChanged="TxtLog_TextChanged"/>
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ItemContainerStyle="{StaticResource RpaListBoxItemStyle}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Texto}"
+                                       Foreground="{Binding Nivel, Converter={StaticResource NivelLogToBrushConverter}}"
+                                       TextWrapping="Wrap"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </Border>
         </Grid>
 
