@@ -37,5 +37,9 @@ namespace TransferToolRPA.Models
 
         // --- Limites de segurança ---
         public const int MaxJanelasParaFechar = 20;
+
+        // --- Logger e diagnóstico ---
+        public const int MaxCaracteresLogMemoria = 100000;
+        public const int DiasRetencaoDiagnostico = 7;
     }
 }

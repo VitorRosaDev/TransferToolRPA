@@ -55,6 +55,7 @@ namespace TransferToolRPA.Models
             try
             {
                 Directory.CreateDirectory(dir);
+                DiagnosticoHelper.LimparAntigos(dir, ConfiguracaoAutomacao.DiasRetencaoDiagnostico);
             }
             catch
             {

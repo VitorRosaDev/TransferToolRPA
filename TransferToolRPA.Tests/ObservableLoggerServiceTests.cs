@@ -92,6 +92,28 @@ namespace TransferToolRPA.Tests
             }
         }
 
+        [Fact]
+        public void Log_MuitasMensagens_DeveLimitarHistoricoEmMemoria()
+        {
+            string dir = CriarDiretorioTemporario();
+            try
+            {
+                var logger = new ObservableLoggerService(dir);
+                string mensagem = new string('x', 150);
+
+                for (int i = 0; i < 1000; i++)
+                {
+                    logger.Log(mensagem);
+                }
+
+                Assert.True(logger.FullLog.Length <= ConfiguracaoAutomacao.MaxCaracteresLogMemoria);
+            }
+            finally
+            {
+                RemoverDiretorio(dir);
+            }
+        }
+
         private static string CriarDiretorioTemporario()
             => Path.Combine(Path.GetTempPath(), "TransferToolRPA.Tests", Guid.NewGuid().ToString("N"));
 

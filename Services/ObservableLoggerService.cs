@@ -67,6 +67,7 @@ namespace TransferToolRPA.Services
             lock (_lockObject)
             {
                 _logBuilder.Append(line);
+                LimitarFullLog();
             }
 
             // O arquivo é diário, mas pode reunir mais de uma sessão — por isso a linha
@@ -74,6 +75,18 @@ namespace TransferToolRPA.Services
             PersistirLinha($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{prefixo}] {message}");
 
             OnLogAdded?.Invoke(new LogEntry(line, nivel));
+        }
+
+        /// <summary>
+        /// Limita o histórico em memória descartando as linhas mais antigas quando o teto
+        /// de caracteres é excedido, evitando crescimento ilimitado em sessões longas.
+        /// </summary>
+        private void LimitarFullLog()
+        {
+            if (_logBuilder.Length > ConfiguracaoAutomacao.MaxCaracteresLogMemoria)
+            {
+                _logBuilder.Remove(0, _logBuilder.Length - ConfiguracaoAutomacao.MaxCaracteresLogMemoria);
+            }
         }
 
         /// <summary>
