@@ -110,7 +110,7 @@ dotnet publish TransferToolRPA.csproj -c Release -r win-x64 --self-contained tru
 
 ## 🧪 Suíte de Testes Automatizados (xUnit)
 
-A aplicação conta com **92 casos de teste** (xUnit), distribuídos em 10 arquivos:
+A aplicação conta com **93 casos de teste** (xUnit), distribuídos em 10 arquivos:
 
 | Arquivo | Casos | Foco |
 |---------|------:|------|
@@ -122,9 +122,9 @@ A aplicação conta com **92 casos de teste** (xUnit), distribuídos em 10 arqui
 | `AutomationEngineTests.cs` | 7 | Orquestração multi-código, skip, parcial, progresso, cancelamento |
 | `AutomationIntegrationTests.cs` | 7 | Hostname do WebSocket CDP e seletores |
 | `PlaywrightPathResolverTests.cs` | 5 | Resolução de driver/browsers (env vars, idempotência) |
-| `ObservableLoggerServiceTests.cs` | 2 | Persistência de log em arquivo |
+| `ObservableLoggerServiceTests.cs` | 3 | Persistência de log em arquivo e sanitização de log injection |
 | `CargaQueueServiceTests.cs` | 3 | Fila: wrappers, status e mover para o fim |
-| **Total** | **92** | |
+| **Total** | **93** | |
 
 > Os testes do `AutomationEngine` chamam `ExecutarFluxoAsync()` (orquestração) com o fluxo mockado — **não** abrem navegador.
 

@@ -13,6 +13,10 @@ e o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Status de conclusão por carga na fila (pendente, concluída, parcial, não encontrado).
 - Persistência diária de logs em `%LOCALAPPDATA%\TransferToolRPA\Logs`.
 
+### Segurança
+- Mitigação de log injection: quebras de linha nas mensagens são sanitizadas antes de persistir no log.
+- Correção de dependências transitivas vulneráveis (System.Text.Json, System.Net.Http, System.Text.RegularExpressions).
+
 ## [0.1.0] - 2026-09-24
 
 ### Adicionado
