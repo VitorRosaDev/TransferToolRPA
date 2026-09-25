@@ -11,8 +11,8 @@ namespace TransferToolRPA.Models
 {
     public class AtendeNetFlow : IAtendeNetFlow
     {
-        private const int TimeoutGradePadraoMs = 15000;
-        private const int JanelaGradeVaziaPadraoMs = 4000;
+        private const int TimeoutGradePadraoMs = ConfiguracaoAutomacao.TimeoutGradeMs;
+        private const int JanelaGradeVaziaPadraoMs = ConfiguracaoAutomacao.JanelaGradeVaziaMs;
 
         private IPage? _page;
         private readonly IProgress<ProgressoAutomacao> _progressReporter;
@@ -71,7 +71,7 @@ namespace TransferToolRPA.Models
 
             // Teto para QUALQUER operacao do Playwright nesta pagina: evita travar
             // indefinidamente em grids que ainda estao carregando/re-renderizando.
-            try { _page.SetDefaultTimeout(10000); } catch { }
+            try { _page.SetDefaultTimeout(ConfiguracaoAutomacao.TimeoutPadraoPaginaMs); } catch { }
         }
 
         /// <summary>
@@ -88,7 +88,7 @@ namespace TransferToolRPA.Models
 
             // Cada clique fecha uma janela e re-renderiza a barra de abas; re-consultamos
             // a contagem a cada iteracao. Limite de seguranca para nao entrar em loop infinito.
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < ConfiguracaoAutomacao.MaxJanelasParaFechar; i++)
             {
                 _cancellationToken.ThrowIfCancellationRequested();
 
@@ -96,7 +96,7 @@ namespace TransferToolRPA.Models
                 if (quantidade == 0) break;
 
                 await botoesFechar.First.ClickAsync();
-                await Task.Delay(300, _cancellationToken);
+                await Task.Delay(ConfiguracaoAutomacao.DelayFecharJanelaMs, _cancellationToken);
             }
 
             await ReportAsync("Janelas abertas verificadas/fechadas.", 11);
@@ -110,7 +110,7 @@ namespace TransferToolRPA.Models
             await page.GotoAsync(AtendeNetSelectors.UrlSistema, new PageGotoOptions
             {
                 WaitUntil = WaitUntilState.NetworkIdle,
-                Timeout = 30000
+                Timeout = ConfiguracaoAutomacao.TimeoutNavegacaoMs
             });
 
             await ClicarComRetryAsync(() => page.ClickAsync(AtendeNetSelectors.Navegacao.MenuMovimento));
@@ -129,7 +129,7 @@ namespace TransferToolRPA.Models
             var campoOrigem = page.Locator(AtendeNetSelectors.OrigemDestino.CampoOrigem).First;
             await PreencherComRetryAsync(campoOrigem, codigoOrigem);
             await campoOrigem.PressAsync("Tab");
-            await Task.Delay(500);
+            await Task.Delay(ConfiguracaoAutomacao.DelayAposTabMs);
 
             var campoDestino = page.Locator(AtendeNetSelectors.OrigemDestino.CampoDestinoIndex1);
             if (await campoDestino.CountAsync() == 0)
@@ -138,7 +138,7 @@ namespace TransferToolRPA.Models
             }
             await PreencherComRetryAsync(campoDestino, codigoDestino);
             await campoDestino.PressAsync("Tab");
-            await Task.Delay(500);
+            await Task.Delay(ConfiguracaoAutomacao.DelayAposTabMs);
         }
 
         public async Task ConfigurarColunasValidadeAsync()
@@ -210,7 +210,7 @@ namespace TransferToolRPA.Models
             // (Quantidade Disponivel, precos). Sem esperar, o preenchimento da
             // quantidade ocorria antes desse AJAX e era sobrescrito/limpo.
             await alvo.Linha.Locator(AtendeNetSelectors.GradeLotes.CelulaValidade)
-                .ClickAsync(new LocatorClickOptions { Timeout = 10000 });
+                .ClickAsync(new LocatorClickOptions { Timeout = ConfiguracaoAutomacao.TimeoutPadraoPaginaMs });
             await AguardarSelecaoLoteAsync();
         }
 
@@ -317,7 +317,7 @@ namespace TransferToolRPA.Models
             var page = GetPage();
             await ReportAsync("Aguardando carregamento da tela de inclusão...", 18);
 
-            var timeout = 20000;
+            var timeout = ConfiguracaoAutomacao.TimeoutJanelaInclusaoMs;
             var inicio = DateTime.Now;
 
             while (DateTime.Now - inicio < TimeSpan.FromMilliseconds(timeout))
@@ -338,7 +338,7 @@ namespace TransferToolRPA.Models
                     catch { }
                 }
 
-                await Task.Delay(500);
+                await Task.Delay(ConfiguracaoAutomacao.DelayPollJanelaMs);
             }
 
             await CapturarDiagnosticoAsync("Timeout aguardando janela de inclusão");
@@ -392,7 +392,7 @@ namespace TransferToolRPA.Models
                     }
                 }
 
-                await Task.Delay(200);
+                await Task.Delay(ConfiguracaoAutomacao.DelayPollGradeMs);
             }
 
             await CapturarDiagnosticoAsync($"Timeout aguardando grade de lotes filtrada (código: {codigo})");
@@ -425,7 +425,7 @@ namespace TransferToolRPA.Models
         private async Task AguardarSelecaoLoteAsync()
         {
             var page = GetPage();
-            var timeout = 10000;
+            var timeout = ConfiguracaoAutomacao.TimeoutSelecaoLoteMs;
             var inicio = DateTime.Now;
 
             while (DateTime.Now - inicio < TimeSpan.FromMilliseconds(timeout))
@@ -449,7 +449,7 @@ namespace TransferToolRPA.Models
                     // Campo ainda não disponível; aguarda o próximo ciclo.
                 }
 
-                await Task.Delay(200);
+                await Task.Delay(ConfiguracaoAutomacao.DelayPollGradeMs);
             }
 
             await CapturarDiagnosticoAsync("Timeout aguardando seleção do lote");
@@ -482,7 +482,7 @@ namespace TransferToolRPA.Models
         private async Task AguardarItemNoCarrinhoAsync()
         {
             var page = GetPage();
-            var timeout = 10000;
+            var timeout = ConfiguracaoAutomacao.TimeoutCarrinhoMs;
             var inicio = DateTime.Now;
             int rowcountEsperado = _ultimoRowcountCarrinho + 1;
 
@@ -501,7 +501,7 @@ namespace TransferToolRPA.Models
                     return;
                 }
 
-                await Task.Delay(300);
+                await Task.Delay(ConfiguracaoAutomacao.DelayPollCarrinhoMs);
             }
 
             await CapturarDiagnosticoAsync("Timeout aguardando item no carrinho");
@@ -517,7 +517,7 @@ namespace TransferToolRPA.Models
                 await botaoSim.WaitForAsync(new LocatorWaitForOptions
                 {
                     State = WaitForSelectorState.Visible,
-                    Timeout = 3000
+                    Timeout = ConfiguracaoAutomacao.TimeoutModalMs
                 });
                 await ClicarComRetryAsync(() => botaoSim.ClickAsync());
             }
@@ -581,7 +581,7 @@ namespace TransferToolRPA.Models
             return lotes;
         }
 
-        private async Task ClicarComRetryAsync(Func<Task> acao, int maxTentativas = 3, int delayBaseMs = 500)
+        private async Task ClicarComRetryAsync(Func<Task> acao, int maxTentativas = ConfiguracaoAutomacao.MaxTentativasRetry, int delayBaseMs = ConfiguracaoAutomacao.DelayRetryCliqueMs)
         {
             Exception? ultimaExcecao = null;
 
@@ -609,7 +609,7 @@ namespace TransferToolRPA.Models
             throw new InvalidOperationException($"Falha após {maxTentativas} tentativas: {ultimaExcecao?.Message}", ultimaExcecao);
         }
 
-        private async Task PreencherComRetryAsync(ILocator locator, string valor, int maxTentativas = 3, int delayBaseMs = 300)
+        private async Task PreencherComRetryAsync(ILocator locator, string valor, int maxTentativas = ConfiguracaoAutomacao.MaxTentativasRetry, int delayBaseMs = ConfiguracaoAutomacao.DelayRetryPreenchimentoMs)
         {
             Exception? ultimaExcecao = null;
 

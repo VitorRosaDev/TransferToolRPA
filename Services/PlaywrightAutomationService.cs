@@ -44,7 +44,7 @@ namespace TransferToolRPA.Services
                 // Sem navegador ou falha na conexao: tenta o fallback abaixo.
             }
 
-            await Task.Delay(800);
+            await Task.Delay(ConfiguracaoAutomacao.DelayAposBrowserCloseMs);
 
             if (await Porta9222AtivaAsync())
             {
@@ -56,7 +56,7 @@ namespace TransferToolRPA.Services
         {
             try
             {
-                using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+                using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(ConfiguracaoAutomacao.TimeoutHttpCdpSegundos) };
                 var resposta = await httpClient.GetAsync($"{CdpHelper.CdpUrl}/json/version");
                 return resposta.IsSuccessStatusCode;
             }
@@ -85,7 +85,7 @@ namespace TransferToolRPA.Services
                 if (processo == null) return;
 
                 string saida = processo.StandardOutput.ReadToEnd();
-                processo.WaitForExit(3000);
+                processo.WaitForExit(ConfiguracaoAutomacao.TimeoutNetstatMs);
 
                 var pids = new System.Collections.Generic.HashSet<int>();
 

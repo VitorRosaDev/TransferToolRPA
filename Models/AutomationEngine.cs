@@ -56,10 +56,10 @@ namespace TransferToolRPA.Models
                 {
                     if (NavegadorHelper.IniciarNavegadorComDepuracao())
                     {
-                        for (int i = 0; i < 6; i++)
+                        for (int i = 0; i < ConfiguracaoAutomacao.MaxTentativasConexaoCdp; i++)
                         {
                             _cancellationToken.ThrowIfCancellationRequested();
-                            await Task.Delay(1000);
+                            await Task.Delay(ConfiguracaoAutomacao.DelayReconexaoCdpMs);
                             try
                             {
                                 wsUrl = await CdpHelper.ObterWebSocketUrlAsync();

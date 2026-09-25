@@ -22,7 +22,7 @@ namespace TransferToolRPA.Models
         {
             try
             {
-                using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+                using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(ConfiguracaoAutomacao.TimeoutHttpCdpSegundos) };
                 string json = await httpClient.GetStringAsync($"{CdpUrl}/json/version");
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("webSocketDebuggerUrl", out var wsProp))
