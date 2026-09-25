@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -82,7 +82,7 @@ jobs:
       - name: Check for unused packages
         run: |
           dotnet list ${{ env.TEST_PROJECT }} package --outdated
-          dotnet list TransferToolRPA/TransferToolRPA.csproj package --outdated
+          dotnet list TransferToolRPA.csproj package --outdated
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
